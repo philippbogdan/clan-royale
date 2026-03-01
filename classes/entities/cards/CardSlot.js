@@ -41,6 +41,11 @@ class CardSlot extends Phaser.GameObjects.Container {
   removeCard() {
     let cardRef = this.card;
     this.remove(this.card);
+    // Clean up the card's cost overlay so it doesn't linger
+    if (cardRef && cardRef._costOverlayId != null && window.__textOverlay) {
+      window.__textOverlay.remove(cardRef._costOverlayId);
+      cardRef._costOverlayId = null;
+    }
     this.card = null;
 
     return cardRef;

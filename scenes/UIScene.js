@@ -12,6 +12,9 @@ class UIScene extends Scene {
     let sceneWidth = this.cameras.main.width;
     let sceneHeight = this.cameras.main.height;
 
+    // ── SPECTATOR MODE CHECK ──
+    this.isSpectatorMode = window.gameMode === 'spectator';
+
     // (Menu removed for cleaner UI)
 
     // ── LANE DIVIDER ──
@@ -25,29 +28,8 @@ class UIScene extends Scene {
         .setOrigin(0.5, 0.5);
     }
 
-    // ── LANE LABELS ──
-    this.leftLaneLabel = this.add
-      .bitmapText(40, 105, "teeny-tiny-pixls", "< LEFT >", 5)
-      .setTint(0xC4A265)
-      .setAlpha(0.25)
-      .setOrigin(0.5, 0.5);
-
-    this.rightLaneLabel = this.add
-      .bitmapText(120, 105, "teeny-tiny-pixls", "< RIGHT >", 5)
-      .setTint(0xC4A265)
-      .setAlpha(0.25)
-      .setOrigin(0.5, 0.5);
-
-    // ── TROOP COUNT INDICATORS ──
-    // Friendly (green) vs Enemy (red) troop counts per lane — via HTML overlay
-    const overlay = window.__textOverlay;
-    this._leftCountId = overlay ? overlay.add(40, 113, "", {
-      fontSize: 5, color: '#F5E6C8', stroke: '#000000', fontWeight: 'bold', alpha: 0.45
-    }) : null;
-
-    this._rightCountId = overlay ? overlay.add(120, 113, "", {
-      fontSize: 5, color: '#F5E6C8', stroke: '#000000', fontWeight: 'bold', alpha: 0.45
-    }) : null;
+    // ── GRID OVERLAY (visible during tactical pause only) ──
+    this.gridGraphics = this.add.graphics().setDepth(151).setAlpha(0);
 
     // (Status readout removed for cleaner UI)
 
@@ -179,18 +161,16 @@ class UIScene extends Scene {
 
     this._gameOverShown = false;
 
-    // ── COMMANDER MASCOT (top-right, hidden by default, appears during tactical pause) ──
-    const mascotScale = 0.09; // ~36px wide from 408px source
-    const mascotX = sceneWidth - 20;
+    // ── COMMANDER MASCOT (top-right, rendered as DOM element above HTML text overlay) ──
+    const mascotX = sceneWidth - 30;
     const mascotY = 4;
 
-    // Golden glow shadow behind the king (drawn with Graphics)
+    // Golden glow shadow behind the king (canvas glow, under dim overlay — decorative only)
     this.mascotGlow = this.add.graphics();
-    this.mascotGlow.setDepth(154); // just behind mascot (155)
+    this.mascotGlow.setDepth(154);
     this.mascotGlow.setAlpha(0);
-    // Draw a soft golden radial glow: layered circles with decreasing alpha
     const glowCx = mascotX;
-    const glowCy = mascotY + 20; // center vertically on mascot
+    const glowCy = mascotY + 20;
     this.mascotGlow.fillStyle(0xDAA520, 0.15);
     this.mascotGlow.fillCircle(glowCx, glowCy, 28);
     this.mascotGlow.fillStyle(0xDAA520, 0.2);
@@ -200,27 +180,11 @@ class UIScene extends Scene {
     this.mascotGlow.fillStyle(0xFFD700, 0.15);
     this.mascotGlow.fillCircle(glowCx, glowCy, 10);
 
-    this.mascotClosed = this.add
-      .image(mascotX, mascotY, "mascot-closed")
-      .setScale(mascotScale)
-      .setOrigin(0.5, 0)
-      .setDepth(155) // above dim overlay (150)
-      .setAlpha(0); // hidden by default
-
-    this.mascotOpen = this.add
-      .image(mascotX, mascotY, "mascot-open")
-      .setScale(mascotScale)
-      .setOrigin(0.5, 0)
-      .setDepth(155)
-      .setAlpha(0)
-      .setVisible(false);
-
-    this._mascotVisible = false; // tracks whether mascot is shown
-
-    // Mouth animation state
+    // Mascot is now a DOM image (above HTML text overlay) via TextOverlay
+    this._mascotVisible = false;
     this._mascotMouthOpen = false;
     this._mascotMouthTimer = 0;
-    this._mascotMouthInterval = 180; // ms between mouth toggles
+    this._mascotMouthInterval = 180;
 
     // ── TRANSCRIPT TEXT (below mascot, only visible during tactical pause) ──
     this.transcriptText = this.add
@@ -242,6 +206,18 @@ class UIScene extends Scene {
     this.micIndicator.setAlpha(0);
     this._micPulseTween = null;
 
+    // ── SPECTATOR MODE: hide voice UI, show chat panels ──
+    if (this.isSpectatorMode) {
+      // Hide voice-related elements
+      this.mascotGlow.setAlpha(0).setVisible(false);
+      this.transcriptText.setVisible(false);
+      this.micIndicator.setVisible(false);
+      this.queueLabel.setVisible(false);
+
+      // Create DOM-based chat panels
+      this._createSpectatorPanels();
+    }
+
     // ── EVENT LISTENERS ──
     this.game.registry.events.on("changedata-voiceStatus", (parent, value) => {
       this.setVoiceStatus(value);
@@ -256,9 +232,6 @@ class UIScene extends Scene {
     if (!this.game.registry.has("voiceStatus")) {
       this.game.registry.set("voiceStatus", "ready");
     }
-
-    // Track troop count update throttle
-    this._lastTroopCountUpdate = 0;
 
     // ── TACTICAL PAUSE OVERLAY ──
     // Dim overlay (darkens the screen during tactical pause)
@@ -278,6 +251,23 @@ class UIScene extends Scene {
       .setAlpha(0)
       .setDepth(170);
 
+    // ── SPECTATOR AI-DECISION LISTENER ──
+    if (this.isSpectatorMode) {
+      const playSceneForSpectator = this.scene.get("PlayScene");
+      if (playSceneForSpectator) {
+        playSceneForSpectator.events.on("ai-decision", ({ side, decision }) => {
+          const reasoning = (decision.orchestrator && decision.orchestrator.reasoning) || '';
+          const actions = ((decision.connector && decision.connector.actions) || [])
+            .map(a => `${a.card} → (${a.col},${a.row})`)
+            .join(', ');
+          const text = reasoning + (actions ? '\n→ ' + actions : '');
+
+          if (side === 'player') this._addSpectatorMessage('left', text);
+          else this._addSpectatorMessage('right', text);
+        });
+      }
+    }
+
     // ── TACTICAL PAUSE EVENT LISTENERS ──
     const playSceneRef = this.scene.get("PlayScene");
 
@@ -287,6 +277,16 @@ class UIScene extends Scene {
         targets: this.dimOverlay,
         alpha: 0.55,
         duration: 300,
+        ease: "Power2"
+      });
+      // Dim HTML text overlay to match
+      if (window.__textOverlay) window.__textOverlay.setDimmed(true);
+      // Show grid overlay
+      this._drawGrid();
+      this.tweens.add({
+        targets: this.gridGraphics,
+        alpha: 1,
+        duration: 200,
         ease: "Power2"
       });
     });
@@ -354,9 +354,164 @@ class UIScene extends Scene {
         duration: 400,
         ease: "Power2"
       });
+      // Undim HTML text overlay
+      if (window.__textOverlay) window.__textOverlay.setDimmed(false);
+
+      // Fade out grid overlay
+      this.tweens.add({
+        targets: this.gridGraphics,
+        alpha: 0,
+        duration: 300,
+        ease: "Power2",
+        onComplete: () => this.gridGraphics.clear()
+      });
 
       // Subtle screen shake on deploy
       this.cameras.main.shake(200, 0.008);
+    });
+
+    playSceneRef.events.on("tactical-unfreeze", () => {
+      // Undim HTML text overlay on any unfreeze (covers cancel case)
+      if (window.__textOverlay) window.__textOverlay.setDimmed(false);
+      // Fade out grid overlay
+      this.tweens.add({
+        targets: this.gridGraphics,
+        alpha: 0,
+        duration: 300,
+        ease: "Power2",
+        onComplete: () => this.gridGraphics.clear()
+      });
+    });
+
+    // ── CARD DRAG ANIMATION (smooth drag from deck slot to grid cell) ──
+    playSceneRef.events.on("tactical-card-flight", (flightData) => {
+      const slotPositions = [
+        { x: 39, y: 242 },
+        { x: 69, y: 242 },
+        { x: 99, y: 242 },
+        { x: 129, y: 242 }
+      ];
+
+      const allHighlights = [];
+      const totalCards = flightData.length;
+
+      for (let i = 0; i < totalCards; i++) {
+        const fd = flightData[i];
+        const slotPos = slotPositions[fd.slotIndex] || slotPositions[0];
+
+        this.time.delayedCall(i * 200, () => {
+          // Create flight sprite at deck slot, full opacity, steady size
+          let flightSprite;
+          if (fd.textureKey && this.textures.exists(fd.textureKey)) {
+            flightSprite = this.add.sprite(slotPos.x, slotPos.y, fd.textureKey)
+              .setDepth(165).setAlpha(1);
+          } else {
+            flightSprite = this.add.rectangle(slotPos.x, slotPos.y, 8, 8, 0xDAA520)
+              .setDepth(165).setAlpha(1);
+          }
+
+          // Build CubicBezier path (4 control points for natural drag feel)
+          const lerp = (a, b, t) => a + (b - a) * t;
+          const P0 = new Phaser.Math.Vector2(slotPos.x, slotPos.y);
+          const P1 = new Phaser.Math.Vector2(lerp(slotPos.x, fd.targetX, 0.3), 215);
+          const P2 = new Phaser.Math.Vector2(lerp(slotPos.x, fd.targetX, 0.7), lerp(215, fd.targetY, 0.6));
+          const P3 = new Phaser.Math.Vector2(fd.targetX, fd.targetY);
+          const curve = new Phaser.Curves.CubicBezier(P0, P1, P2, P3);
+
+          let lastCol = -1;
+          let lastRow = -1;
+          const cardHighlights = [];
+
+          // Animate along the curve
+          const tweenObj = { t: 0 };
+          this.tweens.add({
+            targets: tweenObj,
+            t: 1,
+            duration: 800,
+            ease: "Sine.easeInOut",
+            onUpdate: () => {
+              const point = curve.getPointAt(tweenObj.t);
+              flightSprite.setPosition(point.x, point.y);
+
+              // Check which grid cell the sprite is over
+              const col = Math.floor(point.x / 16);
+              const row = Math.floor((point.y - 115) / 15);
+              const inGrid = col >= 0 && col < 10 && row >= 0 && row < 6;
+
+              if (inGrid && (col !== lastCol || row !== lastRow)) {
+                // Fade previous highlights to trail alpha
+                for (const h of cardHighlights) {
+                  this.tweens.add({
+                    targets: h,
+                    alpha: 0.1,
+                    duration: 150,
+                    ease: "Power2"
+                  });
+                }
+
+                // Draw new highlight rectangle
+                const highlight = this.add
+                  .rectangle(col * 16 + 8, 115 + row * 15 + 7.5, 16, 15, 0xDAA520)
+                  .setAlpha(0.3)
+                  .setDepth(152);
+                cardHighlights.push(highlight);
+                allHighlights.push(highlight);
+
+                this._playTick();
+                lastCol = col;
+                lastRow = row;
+              }
+            },
+            onComplete: () => {
+              // Hold at destination with pulsing highlight
+              const finalHighlight = cardHighlights[cardHighlights.length - 1];
+              if (finalHighlight) {
+                this.tweens.add({
+                  targets: finalHighlight,
+                  alpha: { from: 0.3, to: 0.5 },
+                  duration: 150,
+                  yoyo: true,
+                  repeat: 0,
+                  ease: "Sine.easeInOut"
+                });
+              }
+
+              // Play spawn SFX at hold moment
+              if (window.__playSFX) window.__playSFX('spawn');
+
+              // After 300ms hold, fade out sprite
+              this.time.delayedCall(300, () => {
+                this.tweens.add({
+                  targets: flightSprite,
+                  alpha: 0,
+                  duration: 150,
+                  ease: "Power2",
+                  onComplete: () => {
+                    flightSprite.destroy();
+                  }
+                });
+              });
+
+              // If this is the last card, clean up all highlights after landing
+              if (i === totalCards - 1) {
+                this.time.delayedCall(600, () => {
+                  for (const h of allHighlights) {
+                    if (h && h.active) {
+                      this.tweens.add({
+                        targets: h,
+                        alpha: 0,
+                        duration: 300,
+                        ease: "Power2",
+                        onComplete: () => h.destroy()
+                      });
+                    }
+                  }
+                });
+              }
+            }
+          });
+        });
+      }
     });
   }
 
@@ -499,26 +654,166 @@ class UIScene extends Scene {
   }
 
   /**
-   * Count troops in each lane for a player group.
-   * Lane boundary is x=80 (divider).
+   * Draw grid lines over the player's deploy zone (y: 115-205, cols: 10, rows: 6).
    */
-  _countTroopsPerLane(troopGroup) {
-    let left = 0;
-    let right = 0;
-    if (troopGroup && troopGroup.getChildren) {
-      const children = troopGroup.getChildren();
-      for (let i = 0; i < children.length; i++) {
-        const troop = children[i];
-        if (troop && troop.active) {
-          if (troop.x < 80) {
-            left++;
-          } else {
-            right++;
-          }
-        }
-      }
+  _drawGrid() {
+    this.gridGraphics.clear();
+    this.gridGraphics.lineStyle(0.5, 0xC4A265, 0.2);
+    for (let col = 0; col <= 10; col++) {
+      this.gridGraphics.lineBetween(col * 16, 115, col * 16, 205);
     }
-    return { left, right };
+    for (let row = 0; row <= 6; row++) {
+      this.gridGraphics.lineBetween(0, 115 + row * 15, 160, 115 + row * 15);
+    }
+  }
+
+  /**
+   * Play a short tick sound via Web Audio API.
+   */
+  _playTick() {
+    if (!this._tickCtx) {
+      this._tickCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = this._tickCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 1200;
+    gain.gain.value = 0.06;
+    osc.start(ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
+    osc.stop(ctx.currentTime + 0.03);
+  }
+
+  // ── SPECTATOR CHAT PANELS ──
+
+  _createSpectatorPanels() {
+    this._spectatorContainer = document.createElement('div');
+    this._spectatorContainer.style.cssText = 'position:fixed;pointer-events:none;overflow:hidden;z-index:15;';
+    document.body.appendChild(this._spectatorContainer);
+
+    this._leftPanel = this._createPanel('FINE-TUNED', '#DAA520');
+    this._rightPanel = this._createPanel('BASE', '#9CA3AF');
+
+    this._leftMessages = [];
+    this._rightMessages = [];
+
+    this._spectatorContainer.appendChild(this._leftPanel.el);
+    this._spectatorContainer.appendChild(this._rightPanel.el);
+
+    this._syncSpectatorPanels();
+
+    this._onSpectatorResize = () => this._syncSpectatorPanels();
+    window.addEventListener('resize', this._onSpectatorResize);
+  }
+
+  _createPanel(title, titleColor) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;display:flex;flex-direction:column;overflow:hidden;border-radius:2px;border:1px solid rgba(196,162,101,0.3);';
+    el.style.background = 'rgba(0,0,0,0.6)';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:2px 4px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;letter-spacing:1px;border-bottom:1px solid rgba(196,162,101,0.2);flex-shrink:0;';
+    header.style.color = titleColor;
+    header.textContent = title;
+    el.appendChild(header);
+
+    const manaText = document.createElement('div');
+    manaText.style.cssText = 'padding:1px 4px;font-family:Arial,Helvetica,sans-serif;color:#C47832;flex-shrink:0;';
+    el.appendChild(manaText);
+
+    const msgArea = document.createElement('div');
+    msgArea.style.cssText = 'flex:1;overflow:hidden;padding:2px 4px;display:flex;flex-direction:column;justify-content:flex-end;';
+    el.appendChild(msgArea);
+
+    return { el, header, manaText, msgArea };
+  }
+
+  _syncSpectatorPanels() {
+    if (!this._spectatorContainer || !this.game || !this.game.canvas) return;
+    const r = this.game.canvas.getBoundingClientRect();
+
+    this._spectatorContainer.style.left = r.left + 'px';
+    this._spectatorContainer.style.top = r.top + 'px';
+    this._spectatorContainer.style.width = r.width + 'px';
+    this._spectatorContainer.style.height = r.height + 'px';
+
+    const panelW = r.width * 0.44;
+    const panelH = r.height * 0.35;
+    const topY = r.height * 0.03;
+    const fontSize = Math.max(8, r.height * 0.022);
+    const headerSize = Math.max(9, r.height * 0.026);
+    const manaSize = Math.max(7, r.height * 0.02);
+
+    // Left panel
+    this._leftPanel.el.style.left = r.width * 0.02 + 'px';
+    this._leftPanel.el.style.top = topY + 'px';
+    this._leftPanel.el.style.width = panelW + 'px';
+    this._leftPanel.el.style.height = panelH + 'px';
+    this._leftPanel.header.style.fontSize = headerSize + 'px';
+    this._leftPanel.manaText.style.fontSize = manaSize + 'px';
+
+    // Right panel
+    this._rightPanel.el.style.right = r.width * 0.02 + 'px';
+    this._rightPanel.el.style.left = 'auto';
+    this._rightPanel.el.style.top = topY + 'px';
+    this._rightPanel.el.style.width = panelW + 'px';
+    this._rightPanel.el.style.height = panelH + 'px';
+    this._rightPanel.header.style.fontSize = headerSize + 'px';
+    this._rightPanel.manaText.style.fontSize = manaSize + 'px';
+
+    // Update message font sizes
+    const updateMsgFonts = (panel) => {
+      const msgs = panel.msgArea.querySelectorAll('.spec-msg');
+      msgs.forEach(m => { m.style.fontSize = fontSize + 'px'; });
+    };
+    updateMsgFonts(this._leftPanel);
+    updateMsgFonts(this._rightPanel);
+  }
+
+  _addSpectatorMessage(side, text) {
+    const panel = side === 'left' ? this._leftPanel : this._rightPanel;
+    const messages = side === 'left' ? this._leftMessages : this._rightMessages;
+    if (!panel || !text) return;
+
+    const r = this.game.canvas ? this.game.canvas.getBoundingClientRect() : null;
+    const fontSize = r ? Math.max(8, r.height * 0.022) : 10;
+
+    const msg = document.createElement('div');
+    msg.className = 'spec-msg';
+    msg.style.cssText = 'color:#F5E6C8;font-family:Arial,Helvetica,sans-serif;padding:2px 0;opacity:0;transition:opacity 0.3s ease;word-wrap:break-word;white-space:pre-wrap;line-height:1.3;border-bottom:1px solid rgba(196,162,101,0.1);margin-bottom:1px;';
+    msg.style.fontSize = fontSize + 'px';
+    msg.textContent = text;
+
+    panel.msgArea.appendChild(msg);
+    messages.push(msg);
+
+    // Trigger fade-in on next frame
+    requestAnimationFrame(() => { msg.style.opacity = '1'; });
+
+    // Remove oldest if >4 messages
+    while (messages.length > 4) {
+      const old = messages.shift();
+      old.style.opacity = '0';
+      setTimeout(() => { if (old.parentNode) old.parentNode.removeChild(old); }, 300);
+    }
+  }
+
+  _updateSpectatorMana() {
+    if (!this.isSpectatorMode || !this._leftPanel || !this._rightPanel) return;
+    try {
+      const playScene = this.scene.get("PlayScene");
+      if (!playScene || !playScene.player) return;
+
+      const pMana = playScene.player.manaBank
+        ? Math.floor(playScene.player.manaBank.getManaAmount()) : '?';
+      const oMana = playScene.opponent && playScene.opponent.manaBank
+        ? Math.floor(playScene.opponent.manaBank.getManaAmount()) : '?';
+
+      this._leftPanel.manaText.textContent = 'Mana: ' + pMana + '/10';
+      this._rightPanel.manaText.textContent = 'Mana: ' + oMana + '/10';
+    } catch (e) { /* not ready */ }
   }
 
   // Keep UI scene on top
@@ -527,21 +822,21 @@ class UIScene extends Scene {
       this.scene.bringToTop();
     }
 
-    // ── Update commander mascot (only visible during tactical pause / speaking) ──
-    try {
+    // ── Spectator mode: update mana display ──
+    if (this.isSpectatorMode) {
+      this._updateSpectatorMana();
+    }
+
+    // ── Update commander mascot (DOM-based, above HTML text overlay) ──
+    if (!this.isSpectatorMode) try {
       const isSpeaking = typeof window !== 'undefined' && window.__ttsSpeaking;
       const isDimmed = this.dimOverlay && this.dimOverlay.alpha > 0.1;
       const shouldShow = isSpeaking || isDimmed;
+      const overlay = window.__textOverlay;
 
-      if (shouldShow && !this._mascotVisible) {
-        // Fade in the commander + golden glow
+      if (shouldShow && !this._mascotVisible && overlay) {
         this._mascotVisible = true;
-        this.tweens.add({
-          targets: this.mascotClosed,
-          alpha: 0.95,
-          duration: 200,
-          ease: "Power2"
-        });
+        overlay.showMascot('assets/mascot-nobg.png', 'assets/mascot-open-nobg.png');
         this.tweens.add({
           targets: this.mascotGlow,
           alpha: 0.9,
@@ -549,19 +844,10 @@ class UIScene extends Scene {
           ease: "Power2"
         });
       } else if (!shouldShow && this._mascotVisible) {
-        // Fade out the commander + golden glow
         this._mascotVisible = false;
         this._mascotMouthOpen = false;
         this._mascotMouthTimer = 0;
-        this.tweens.add({
-          targets: [this.mascotClosed, this.mascotOpen],
-          alpha: 0,
-          duration: 300,
-          ease: "Power2",
-          onComplete: () => {
-            this.mascotOpen.setVisible(false);
-          }
-        });
+        if (overlay) overlay.hideMascot();
         this.tweens.add({
           targets: this.mascotGlow,
           alpha: 0,
@@ -571,32 +857,22 @@ class UIScene extends Scene {
       }
 
       // Mouth animation (only when speaking and visible)
-      if (isSpeaking && this._mascotVisible) {
+      if (isSpeaking && this._mascotVisible && overlay) {
         this._mascotMouthTimer += delta;
         if (this._mascotMouthTimer >= this._mascotMouthInterval) {
           this._mascotMouthTimer = 0;
           this._mascotMouthOpen = !this._mascotMouthOpen;
         }
-        if (this._mascotMouthOpen) {
-          this.mascotClosed.setAlpha(0);
-          this.mascotOpen.setVisible(true).setAlpha(0.95);
-        } else {
-          this.mascotClosed.setAlpha(0.95);
-          this.mascotOpen.setVisible(false).setAlpha(0);
-        }
-      } else if (!isSpeaking && this._mascotMouthOpen) {
-        // Stop mouth animation, show closed
+        overlay.setMascotMouth(this._mascotMouthOpen);
+      } else if (!isSpeaking && this._mascotMouthOpen && overlay) {
         this._mascotMouthOpen = false;
         this._mascotMouthTimer = 0;
-        if (this._mascotVisible) {
-          this.mascotClosed.setAlpha(0.95);
-        }
-        this.mascotOpen.setVisible(false).setAlpha(0);
+        overlay.setMascotMouth(false);
       }
     } catch (e) { /* mascot not ready */ }
 
     // ── Update transcript display ──
-    try {
+    if (!this.isSpectatorMode) try {
       const transcript = (typeof window !== 'undefined' && window.__currentTranscript) || "";
       if (transcript && transcript !== this._lastTranscriptText) {
         // New transcript text arrived
@@ -623,7 +899,7 @@ class UIScene extends Scene {
     } catch (e) { /* transcript not ready */ }
 
     // ── Update mic activity indicator ──
-    try {
+    if (!this.isSpectatorMode) try {
       const userSpeaking = typeof window !== 'undefined' && window.__userSpeaking;
       if (userSpeaking && !this._micPulseTween) {
         this.micIndicator.setAlpha(0.9);
@@ -709,8 +985,8 @@ class UIScene extends Scene {
 
       // (Mana bar is handled by ManaBank's built-in DisplayBar)
 
-      // ── Update deploy queue display ──
-      try {
+      // ── Update deploy queue display (skip in spectator mode) ──
+      if (!this.isSpectatorMode) try {
         const queue = (typeof window !== 'undefined' && window.__deployQueue) || [];
         const qLen = queue.length;
 
@@ -846,43 +1122,6 @@ class UIScene extends Scene {
       // Opponent towers (clay red)
       if (playScene.opponent && playScene.opponent.towers && playScene.opponent.towers.getChildren) {
         playScene.opponent.towers.getChildren().forEach(t => drawHealthBar(t, 0xA33B2A));
-      }
-
-      // ── Update troop counts (throttled to every ~500ms) ──
-      if (time - this._lastTroopCountUpdate > 500) {
-        this._lastTroopCountUpdate = time;
-
-        const playerTroops = this._countTroopsPerLane(playScene.player.troops);
-        const enemyTroops = this._countTroopsPerLane(playScene.opponent.troops);
-
-        // Format: friendlyCount/enemyCount per lane
-        const leftStr = playerTroops.left + "v" + enemyTroops.left;
-        const rightStr = playerTroops.right + "v" + enemyTroops.right;
-
-        const ov = window.__textOverlay;
-        if (ov && this._leftCountId != null) ov.setText(this._leftCountId, leftStr);
-        if (ov && this._rightCountId != null) ov.setText(this._rightCountId, rightStr);
-
-        // Highlight lane with enemy advantage in clay red
-        if (ov && this._leftCountId != null) {
-          if (enemyTroops.left > playerTroops.left) {
-            ov.setColor(this._leftCountId, '#A33B2A');
-          } else if (playerTroops.left > enemyTroops.left) {
-            ov.setColor(this._leftCountId, '#4A7B2D');
-          } else {
-            ov.setColor(this._leftCountId, '#F5E6C8');
-          }
-        }
-
-        if (ov && this._rightCountId != null) {
-          if (enemyTroops.right > playerTroops.right) {
-            ov.setColor(this._rightCountId, '#A33B2A');
-          } else if (playerTroops.right > enemyTroops.right) {
-            ov.setColor(this._rightCountId, '#4A7B2D');
-          } else {
-            ov.setColor(this._rightCountId, '#F5E6C8');
-          }
-        }
       }
 
       // ── Check for game over ──

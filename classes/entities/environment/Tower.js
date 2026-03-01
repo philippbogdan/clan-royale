@@ -52,13 +52,16 @@ export default class Tower extends EnvironmentObject {
     for (let waypoint of this.waypoints) {
       waypoint.destroy();
     }
-    this.isDestroyed = true;
 
-    // Delay the event so this tower will be destroyed when the vent propegates
+    // Save references before super.destroy() clears them
     var scene = this.scene;
+    var owner = this.owner;
+    var isKingTower = this.isKingTower;
+
+    // Delay the event so this tower will be destroyed when the event propagates
     setTimeout(function() {
       if (scene && scene.sys && scene.events) {
-        scene.events.emit("tower-destroyed");
+        scene.events.emit("tower-destroyed", { owner, isKingTower });
       }
     }, 1500);
 

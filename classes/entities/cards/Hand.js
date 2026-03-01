@@ -85,6 +85,23 @@ class Hand extends Phaser.GameObjects.Container {
     return cards;
   }
 
+  updateOverlays() {
+    // Compute world position of this Hand container
+    // Chain: CardArea(0, gameH-46) → Hand(35, 5) → CardSlot(slotX, slotY) → Card(1, 1)
+    const matrix = this.getWorldTransformMatrix();
+    const handWx = matrix.tx;
+    const handWy = matrix.ty;
+    for (let i = 0; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (slot.card) {
+        // Slot position + card offset + text offset within card
+        const wx = handWx + slot.x + 1 + 5;
+        const wy = handWy + slot.y + 1 + 4;
+        slot.card.syncCostOverlay(wx, wy);
+      }
+    }
+  }
+
   destroy() {
     super.destroy();
   }

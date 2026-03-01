@@ -1,6 +1,7 @@
 import Player from "./Player.js";
 import CardArea from "../entities/cards/CardArea.js";
 import ManaBank from "../ManaBank.js";
+import GameAPI from "../GameAPI.js";
 
 export default class ControlledPlayer extends Player {
   constructor(scene) {
@@ -49,6 +50,19 @@ export default class ControlledPlayer extends Player {
         );
 
         if (spawnedTroop) {
+          // Record deployment for training data
+          try {
+            const api = window.gameAPI;
+            if (api) {
+              const grid = GameAPI.pixelToGrid(pointer.worldX, pointer.worldY);
+              const gameState = api.getGameState();
+              const action = { type: "play_card", card: troopClass.NAME, col: grid.col, row: grid.row };
+              api.recordDecision(gameState, [action], "player");
+              console.log('[Recording] Card deployed:', troopClass.NAME, 'at', grid.col, grid.row, '| Total recorded:', api._recordedDecisions.length);
+            }
+          } catch (e) {
+            console.error('[Recording] Error:', e);
+          }
           this.opponent.spawnZoneOverlay.setAlpha(0); // Hide red area denoting where player can't spawn
           playerCardHand.drawNextCard();
           playerCardHand.deselectAll();

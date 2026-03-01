@@ -43,10 +43,11 @@ class Player {
     this.flyingTroops = scene.physics.add.group();
     this.attentionAreas = scene.physics.add.group();
 
-    //this.tower = new Tower(scene, this, towerX, towerY);
     this.towers = scene.physics.add.staticGroup();
+    this.kingTower = new Tower(scene, this, towerX, towerY);
+    this.kingTower.isKingTower = true;
     this.towers.addMultiple([
-      new Tower(scene, this, towerX, towerY),
+      this.kingTower,
       new Tower(
         scene,
         this,

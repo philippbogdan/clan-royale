@@ -14,18 +14,25 @@ class GameAPI {
     this._deployQueue = [];
     window.__deployQueue = this._deployQueue;
 
+    // Recorded decisions for training data (spectator mode)
+    this._recordedDecisions = [];
+
     // Snapshot of tower health for damage detection
     this._lastTowerHealth = this._snapshotTowerHealth();
     this._lastManaFull = false;
 
-    // Listen for game-over conditions
-    scene.events.on("tower-destroyed", () => {
-      if (scene.player.towers.getLength() === 0) {
-        this.gameStatus = "lost";
-        this._emit("game_over", { result: "lost" });
-      } else if (scene.opponent.towers.getLength() === 0) {
-        this.gameStatus = "won";
-        this._emit("game_over", { result: "won" });
+    // Listen for game-over conditions (game ends when king tower falls)
+    scene.events.on("tower-destroyed", (data) => {
+      if (data && data.isKingTower) {
+        if (data.owner === scene.player) {
+          this.gameStatus = "lost";
+          this._emit("game_over", { result: "lost" });
+          this._flushRecordedDecisions("lost");
+        } else if (data.owner === scene.opponent) {
+          this.gameStatus = "won";
+          this._emit("game_over", { result: "won" });
+          this._flushRecordedDecisions("won");
+        }
       }
       this._emit("tower_destroyed", {
         myTowers: scene.player.towers.getLength(),
@@ -55,11 +62,20 @@ class GameAPI {
       myTowers: this._serializeTowers(scene.player),
       opponentTowers: this._serializeTowers(scene.opponent),
       gameStatus: this.gameStatus,
-      queue: this.getQueueState()
+      queue: this.getQueueState(),
+      grid: {
+        cols: 10, rows: 6,
+        bridges: [{ col: 1, side: "left" }, { col: 8, side: "right" }],
+        note: "row 0 = river/bridges (aggressive), row 5 = near your towers (defensive). Left bridge col 1-2, right bridge col 7-8."
+      }
     };
   }
 
   getHand() {
+    // In spectator mode, player is a ComputerPlayer with virtual hand
+    if (this.scene.player.getVirtualHandState) {
+      return this.scene.player.getVirtualHandState();
+    }
     const hand = this.scene.player.cardArea.hand;
     const result = [];
     for (let i = 0; i < hand.slots.length; i++) {
@@ -135,12 +151,21 @@ class GameAPI {
   executeActions(actions) {
     const results = [];
     for (const action of actions) {
+      let x = action.x, y = action.y;
+      if (action.col != null && action.row != null) {
+        const px = GameAPI.gridToPixel(action.col, action.row);
+        x = px.x; y = px.y;
+      }
       if (action.type === "queue_card") {
-        results.push(this.queueCard(action.card, action.x, action.y));
+        results.push(this.queueCard(action.card, x, y));
       } else if (action.type === "play_card") {
-        const cardName = action.card;
-        const lane = action.lane || "left";
-        results.push(this.playCardByName(cardName, lane, action.x, action.y));
+        const lane = action.lane || (x != null && x < 80 ? "left" : "right");
+        const result = this.playCardByName(action.card, lane, x, y);
+        if (!result.success && result.error === "Not enough mana") {
+          results.push(this.queueCard(action.card, x, y));
+        } else {
+          results.push(result);
+        }
       } else {
         results.push({ success: false, error: `Unknown action type: ${action.type}` });
       }
@@ -166,6 +191,13 @@ class GameAPI {
     hand.deselectAll();
     this.scene.opponent.spawnZoneOverlay.setAlpha(0);
 
+    // Create dimmed ghost sprite at target position
+    let ghost = null;
+    try {
+      ghost = this.scene.add.sprite(x, y, troopClass.ANIM_KEY_PREFIX);
+      ghost.setAlpha(0.3).setDepth(50).setTint(0x8888ff);
+    } catch (e) { /* sprite creation may fail if texture missing */ }
+
     // Add to queue
     this._deployQueue.push({
       troopClass,
@@ -173,7 +205,8 @@ class GameAPI {
       x,
       y,
       cardName: troopClass.NAME,
-      queuedAt: Date.now()
+      queuedAt: Date.now(),
+      ghost
     });
     window.__deployQueue = this._deployQueue;
 
@@ -189,6 +222,11 @@ class GameAPI {
     if (currentMana >= front.cost) {
       this._deployQueue.shift();
       window.__deployQueue = this._deployQueue;
+
+      // Remove ghost sprite
+      if (front.ghost) {
+        try { front.ghost.destroy(); } catch (e) { /* ignore */ }
+      }
 
       const spawned = this.scene.player.spawnTroop(
         front.x,
@@ -235,12 +273,16 @@ class GameAPI {
     playScene.freezeGame();
 
     // 2. Emit preview data for UIScene
-    const previewData = actions.map(a => ({
-      card: a.card,
-      lane: a.lane,
-      x: a.lane === 'left' ? 40 : 120,
-      y: 180
-    }));
+    const previewData = actions.map(a => {
+      let x, y;
+      if (a.col != null && a.row != null) {
+        const px = GameAPI.gridToPixel(a.col, a.row);
+        x = px.x; y = px.y;
+      } else {
+        x = a.lane === 'left' ? 40 : 120; y = 180;
+      }
+      return { card: a.card, lane: a.lane || (x < 80 ? 'left' : 'right'), x, y };
+    });
     playScene.events.emit('tactical-preview', previewData);
 
     // 3. Speak reasoning via TTS
@@ -268,6 +310,34 @@ class GameAPI {
     // 6. Brief pause after speech ends before deploying
     await new Promise(r => setTimeout(r, 300));
 
+    // 6b. Card flight animation
+    const hand = playScene.player.cardArea.hand;
+    const flightData = [];
+    let actionIndex = 0;
+    for (const action of actions) {
+      for (let i = 0; i < hand.slots.length; i++) {
+        const slot = hand.slots[i];
+        if (slot.card && slot.card.troopClass &&
+            slot.card.troopClass.NAME.toLowerCase() === action.card.toLowerCase()) {
+          flightData.push({
+            card: action.card,
+            slotIndex: i,
+            textureKey: slot.card.troopClass.ANIM_KEY_PREFIX,
+            targetX: previewData[actionIndex].x,
+            targetY: previewData[actionIndex].y,
+            targetCol: action.col != null ? action.col : (action.lane === 'left' ? 2 : 7),
+            targetRow: action.row != null ? action.row : 4
+          });
+          break;
+        }
+      }
+      actionIndex++;
+    }
+    if (flightData.length > 0) {
+      playScene.events.emit('tactical-card-flight', flightData);
+    }
+    await new Promise(r => setTimeout(r, 1500));
+
     // 7. DEPLOY — execute actual card plays
     playScene.events.emit('tactical-deploy');
     const results = this.executeActions(actions);
@@ -278,6 +348,36 @@ class GameAPI {
 
     this._cinematicActive = false;
     return results;
+  }
+
+  // ---- Decision recording (spectator mode) ----
+
+  recordDecision(gameState, actions, side) {
+    this._recordedDecisions.push({
+      timestamp: Date.now(),
+      side,
+      gameState,
+      actions
+    });
+  }
+
+  _flushRecordedDecisions(result) {
+    console.log('[GameAPI] Flushing', this._recordedDecisions.length, 'recorded decisions, result:', result);
+    if (this._recordedDecisions.length === 0) return;
+
+    const entries = this._recordedDecisions.map(d => ({
+      ...d,
+      gameResult: result
+    }));
+    this._recordedDecisions = [];
+
+    fetch('http://localhost:3001/api/record-gameplay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries })
+    }).catch(err => {
+      console.error('[GameAPI] Failed to flush recorded decisions:', err);
+    });
   }
 
   // ---- Event system ----
@@ -420,9 +520,9 @@ class GameAPI {
       // Towers are also in the troops group; skip them
       if (troop.owner && troop.animKeyPrefix) {
         troops.push({
-          name: troop.animKeyPrefix,
-          x: Math.round(troop.x),
-          y: Math.round(troop.y),
+          name: troop.constructor.NAME || troop.animKeyPrefix,
+          col: Math.max(0, Math.min(9, Math.floor(troop.x / 16))),
+          row: Math.max(0, Math.min(5, Math.floor((troop.y - 115) / 15))),
           health: troop.currentHealth
         });
       }
@@ -434,13 +534,29 @@ class GameAPI {
     const towers = [];
     player.towers.getChildren().forEach(tower => {
       towers.push({
-        x: Math.round(tower.x),
-        y: Math.round(tower.y),
+        col: Math.max(0, Math.min(9, Math.floor(tower.x / 16))),
+        row: Math.max(0, Math.min(5, Math.floor((tower.y - 115) / 15))),
         health: tower.currentHealth
       });
     });
     return towers;
   }
 }
+
+GameAPI.gridToPixel = function(col, row) {
+  return {
+    x: Math.max(0, Math.min(159, col * 16 + 8)),
+    y: Math.max(115, Math.min(204, 115 + row * 15 + 7.5))
+  };
+};
+
+GameAPI.pixelToGrid = function(px, py) {
+  const col = Math.round((px - 8) / 16);
+  const row = Math.round((py - 115 - 7.5) / 15);
+  return {
+    col: Math.max(0, Math.min(9, col)),
+    row: Math.max(0, Math.min(5, row))
+  };
+};
 
 export default GameAPI;

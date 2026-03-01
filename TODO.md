@@ -28,29 +28,22 @@
 - [x] Evaluation pipeline skeleton for Track 2 (generate-training-data, run-match, evaluate)
 - [x] UI redesign -- dark minimal aesthetic, glass-morphism voice panel
 - [x] Voice transport fix -- switched from WebRTC to WebSocket to avoid LiveKit SDK crash
+- [x] Tactical Pause -- cinematic deploy sequence (freeze/dim/preview/card-flight/deploy)
+- [x] Cinematic card flight animation during tactical pause (bezier arc from deck slot to target, scale pulse, landing flash)
+- [x] Dim and freeze game while player speaks + Mistral processes
+- [x] RAG system for AI agent (enhanced Mistral prompt with full troop stats + counter-matchups)
+- [x] Fix ElevenLabs voice connection stability (WebSocket transport workaround in place)
+- [x] Final end-to-end testing (voice flow, text flow, game over, restart)
+- [x] Screenshots for submission (title screen, mid-battle, voice chat active, game over)
+- [x] Confirm .env.example has all required variables documented
+- [x] Grid-based deployment system (10x6 grid replacing left/right lanes)
+- [x] Drag animation with grid cell highlights and tick sounds
+- [x] Remove bridge text overlays (lane labels + troop counts)
+- [x] Mistral prompt updated for grid coordinate placement with troop-type strategy
 
-## In Progress
+## Manual Steps Remaining
 
-- [ ] Final end-to-end testing (voice flow, text flow, game over, restart)
-- [ ] Fix ElevenLabs voice connection stability (switched to websocket transport, needs real-browser testing)
-
-## Remaining for Submission
-
-- [ ] Tactical Pause — cinematic deploy sequence (see below)
-- [ ] Screenshots for submission (title screen, mid-battle, voice chat active, game over)
 - [ ] Short demo video recording (30-60s showing voice command -> deployment -> battle)
-- [ ] Confirm .env.example has all required variables documented
-
-## Tactical Pause — Cinematic Deploy Sequence
-
-**The big showstopper feature.** When the player speaks a command:
-
-1. **FREEZE + DIM** — The game freezes (physics paused, mana paused, all troops stop). The game canvas dims/darkens with an overlay. This signals "the commander is thinking."
-2. **AI THINKS** — The ElevenLabs agent calls get_game_state, sends to Mistral, gets back troop placements. The commander narrates what it's planning ("Dropping a tank on the left and witch behind it!").
-3. **PREVIEW** — The chosen troops appear on the dimmed/frozen battlefield as bright highlighted silhouettes or glowing sprites at their deploy positions. The player sees exactly where troops will land before they drop.
-4. **EPIC DEPLOY** — The game unfreezes. The preview sprites transform into real troops with a dramatic spawn animation (flash, scale-up, maybe a small screen shake). The dim overlay lifts. Battle resumes.
-
-**End result**: Every voice command feels like calling in an airstrike. The pause creates tension, the preview builds anticipation, and the deploy is the payoff. This is the "wow moment" for the demo — it makes voice control feel cinematic rather than just functional.
 
 ## Fine-tuned vs Base Mistral Comparison (Track 2)
 
@@ -82,18 +75,12 @@
 - Replay format: JSONL with timestamped game states + actions
 - Replay viewer: step through states, show board, highlight deployments
 
-## Backlog
-
-- [ ] RAG system for AI agent — build a retrieval system so Mistral/agent can pull up detailed troop stats, abilities, descriptions, and synergies from the deck. Would help the AI make smarter strategic decisions based on actual troop data rather than just names and costs.
-- [ ] Investigate Deepgram transcription drops — interim transcripts show on-screen but some never reach final/Mistral
-- [ ] Dim and freeze game while player speaks + Mistral processes
-- [ ] Cinematic card flight animation during tactical pause (spline curve from deck to target position, sigmoid easing, tick sounds)
-
 ## Known Issues
 
-- WebRTC transport (livekit-client@2.17.2 + Parcel 1.x) crashes on data channel — using WebSocket transport as workaround
+- WebRTC transport (livekit-client@2.17.2 + Parcel 1.x) crashes on data channel -- using WebSocket transport as workaround
 - Voice session reconnect limited to 2 attempts to prevent infinite loop
 - Mistral can occasionally return troop names not matching the valid troop list (retry + fallback handles this)
 - Text input mode requires the Express server running on port 3001
-- Parcel HMR can sometimes break the Phaser game state on hot reload — full page refresh fixes it
+- Parcel HMR can sometimes break the Phaser game state on hot reload -- full page refresh fixes it
 - Game canvas doesn't fill container width (Phaser Scale.FIT + zoom:3 constrained by container height)
+- Deepgram transcription drops -- interim transcripts show on-screen but some never reach final/Mistral (intermittent, no repro steps)

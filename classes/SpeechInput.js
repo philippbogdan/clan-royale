@@ -37,6 +37,8 @@ export default class SpeechInput {
     this._mediaRecorder = null;
     this._micStream = null; // mic stream (null if using shared window.__micStream)
     this._ownsMicStream = false; // whether we acquired the mic ourselves
+    this._earlyFreezeActive = false; // true when game is frozen on interim, waiting for final
+    this._earlyFreezeTimeout = null; // safety timeout to unfreeze if no final arrives
   }
 
   /** Record an agent message so we can filter it from mic input */
@@ -49,7 +51,7 @@ export default class SpeechInput {
   /** Check if transcript is just the mic echoing recent agent speech */
   _isEcho(text) {
     const lower = text.toLowerCase().trim();
-    const inputWords = lower.split(/\s+/).filter(w => w.length >= 3);
+    const inputWords = lower.split(/\s+/).filter(w => w.length >= 4);
     if (inputWords.length === 0) return false;
 
     for (const msg of this._recentAgentMessages) {
@@ -61,12 +63,12 @@ export default class SpeechInput {
         return true;
       }
       // Word-level overlap: if >=40% of input words appear in agent message, it's echo
-      const msgWords = msg.split(/\s+/).filter(w => w.length >= 3);
+      const msgWords = msg.split(/\s+/).filter(w => w.length >= 4);
       let overlap = 0;
       for (const w of inputWords) {
         if (msgWords.some(mw => mw.includes(w) || w.includes(mw))) overlap++;
       }
-      if (inputWords.length >= 3 && overlap / inputWords.length >= 0.55) {
+      if (inputWords.length >= 3 && overlap / inputWords.length >= 0.70) {
         return true;
       }
     }
@@ -74,24 +76,30 @@ export default class SpeechInput {
   }
 
   async start() {
+    console.log('%c[SpeechInput] start() called', 'color: lime; font-weight: bold');
     // 1. Get mic stream — reuse shared stream from landing page if available
     let stream;
     if (window.__micStream) {
       stream = window.__micStream;
       this._ownsMicStream = false;
+      console.log('%c[SpeechInput] Reusing shared mic stream', 'color: lime');
       debugLog('mic_reuse_shared');
     } else {
       try {
+        console.log('%c[SpeechInput] Requesting mic...', 'color: yellow');
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         this._ownsMicStream = true;
+        console.log('%c[SpeechInput] Mic acquired', 'color: lime');
         debugLog('mic_acquired');
       } catch (e) {
+        console.error('[SpeechInput] Mic denied:', e.message);
         debugLog('mic_error', { error: e.message });
         voiceLog('Microphone access denied', 'error');
         return;
       }
     }
     this._micStream = stream;
+    console.log('[SpeechInput] Stream tracks:', stream.getTracks().map(t => t.kind + ':' + t.readyState));
 
     // Initialize global state for UI consumption
     window.__userSpeaking = false;
@@ -164,10 +172,14 @@ export default class SpeechInput {
     if (!this.isRunning) return;
 
     // Connect through our server proxy (handles Deepgram auth server-side)
-    const ws = new WebSocket('ws://localhost:3001/deepgram');
+    // Deepgram auto-detects WebM/Opus containers, no encoding hint needed
+    const wsUrl = 'ws://localhost:3001/deepgram';
+    console.log('%c[SpeechInput] Connecting WS: ' + wsUrl, 'color: cyan');
+    const ws = new WebSocket(wsUrl);
     this._ws = ws;
 
     ws.onopen = () => {
+      console.log('%c[SpeechInput] WS OPEN — starting MediaRecorder', 'color: lime; font-weight: bold');
       debugLog('deepgram_ws_open');
       this._startMediaRecorder();
     };
@@ -198,8 +210,36 @@ export default class SpeechInput {
         // Expose transcript globally for UI display (both interim and final)
         window.__currentTranscript = text;
 
-        // Interrupt TTS when player starts talking (interim results while muted)
-        if (!isFinal && this.isMuted && text.length > 2 && !this._isEcho(text)) {
+        // EARLY TACTICAL FREEZE: freeze game on first interim transcript
+        if (!isFinal && text.length > 2 && !this._isEcho(text) && !this._earlyFreezeActive && !this._strategyPending) {
+          this._earlyFreezeActive = true;
+          debugLog('early_freeze', { text });
+
+          // Freeze game immediately
+          if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.freezeGame) {
+            this.gameAPI.scene.freezeGame();
+          }
+
+          // Interrupt TTS if AI is speaking and unmute (bypass cooldown since we're in tactical pause)
+          if (this.isMuted) {
+            if (window.__interruptTTS) window.__interruptTTS();
+            this.isMuted = false;
+            this._lastUnmuteTime = 0;
+          }
+
+          // Safety timeout: if no meaningful final within 3s, unfreeze
+          this._earlyFreezeTimeout = setTimeout(() => {
+            if (this._earlyFreezeActive) {
+              this._earlyFreezeActive = false;
+              debugLog('early_freeze_timeout');
+              if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.unfreezeGame) {
+                this.gameAPI.scene.unfreezeGame();
+              }
+            }
+          }, 3000);
+        }
+        // Also interrupt TTS on interim if muted but already in early freeze
+        else if (!isFinal && this.isMuted && text.length > 2 && !this._isEcho(text)) {
           debugLog('speech_interrupt_tts', { text });
           if (typeof window !== 'undefined' && window.__interruptTTS) {
             window.__interruptTTS();
@@ -207,6 +247,32 @@ export default class SpeechInput {
         }
 
         if (isFinal && text.length > 0) {
+          // EARLY FREEZE PATH: game is already frozen, just need to decide if speech is meaningful
+          if (this._earlyFreezeActive) {
+            clearTimeout(this._earlyFreezeTimeout);
+            this._earlyFreezeActive = false;
+
+            // Not meaningful (too short or echo) → unfreeze and return
+            if (text.length <= 2 || this._isEcho(text)) {
+              debugLog('early_freeze_noise', { text });
+              if (sttLog) sttLog('skip', text, 'noise → unfreeze');
+              if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.unfreezeGame) {
+                this.gameAPI.scene.unfreezeGame();
+              }
+              return;
+            }
+
+            // Meaningful → proceed to Mistral (game stays frozen, cinematicDeploy will manage)
+            if (sttLog) sttLog('sent', text, '-> Mistral');
+            debugLog('speech_transcript', { text, confidence: alt.confidence });
+            voiceLog('You: ' + text, 'player');
+            this._askMistralStrategy(text);
+            if (this.onTranscript) this.onTranscript(text, isFinal);
+            setTimeout(() => { window.__currentTranscript = ''; }, 2000);
+            return;
+          }
+
+          // NORMAL PATH (no early freeze active)
           // Skip if muted (AI is speaking - prevents feedback loop)
           if (this.isMuted) {
             if (sttLog) sttLog('skip', text, 'muted');
@@ -214,7 +280,7 @@ export default class SpeechInput {
             return;
           }
 
-          // Cooldown: ignore transcripts arriving within 2s of unmute
+          // Cooldown: ignore transcripts arriving within 800ms of unmute
           if (this._lastUnmuteTime && Date.now() - this._lastUnmuteTime < 800) {
             if (sttLog) sttLog('skip', text, 'cooldown ' + (Date.now() - this._lastUnmuteTime) + 'ms');
             debugLog('speech_ignored_cooldown', { text, elapsed: Date.now() - this._lastUnmuteTime });
@@ -246,6 +312,7 @@ export default class SpeechInput {
     };
 
     ws.onclose = (event) => {
+      console.warn('[SpeechInput] WS CLOSED code=' + event.code + ' reason=' + event.reason);
       debugLog('deepgram_ws_close', { code: event.code, reason: event.reason });
       this._stopMediaRecorder();
       // Reconnect if still running
@@ -256,6 +323,7 @@ export default class SpeechInput {
     };
 
     ws.onerror = (event) => {
+      console.error('[SpeechInput] WS ERROR:', event);
       debugLog('deepgram_ws_error', { error: String(event) });
     };
   }
@@ -263,25 +331,44 @@ export default class SpeechInput {
   _startMediaRecorder() {
     if (!this._micStream || this._mediaRecorder) return;
 
-    // Pick a supported mime type
+    // Pick a supported mime type (Safari only supports audio/mp4)
     let mimeType = 'audio/webm;codecs=opus';
-    if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
-      mimeType = 'audio/webm';
+    if (typeof MediaRecorder !== 'undefined') {
+      const supported = [];
+      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', '']) {
+        if (t === '' || MediaRecorder.isTypeSupported(t)) supported.push(t);
+      }
+      console.log('[SpeechInput] Supported mime types:', supported);
+      mimeType = supported[0] || '';
     }
+    console.log('%c[SpeechInput] Using mimeType: "' + mimeType + '"', 'color: cyan; font-weight: bold');
 
     try {
-      const recorder = new MediaRecorder(this._micStream, { mimeType });
+      const recorder = mimeType
+        ? new MediaRecorder(this._micStream, { mimeType })
+        : new MediaRecorder(this._micStream);
       this._mediaRecorder = recorder;
 
+      let chunkCount = 0;
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0 && this._ws && this._ws.readyState === WebSocket.OPEN) {
+          chunkCount++;
+          if (chunkCount <= 5 || chunkCount % 50 === 0) {
+            console.log('[SpeechInput] Audio chunk #' + chunkCount + ' size=' + event.data.size + ' ws=' + this._ws.readyState);
+          }
           this._ws.send(event.data);
         }
       };
 
+      recorder.onerror = (e) => {
+        console.error('[SpeechInput] MediaRecorder error:', e);
+      };
+
       recorder.start(100); // send chunk every 100ms
+      console.log('%c[SpeechInput] MediaRecorder started, state=' + recorder.state, 'color: lime; font-weight: bold');
       debugLog('media_recorder_started', { mimeType });
     } catch (e) {
+      console.error('[SpeechInput] MediaRecorder creation FAILED:', e.message);
       debugLog('media_recorder_error', { error: e.message });
     }
   }
@@ -299,6 +386,13 @@ export default class SpeechInput {
 
   stop() {
     this.isRunning = false;
+
+    // Clean up early freeze
+    if (this._earlyFreezeTimeout) {
+      clearTimeout(this._earlyFreezeTimeout);
+      this._earlyFreezeTimeout = null;
+    }
+    this._earlyFreezeActive = false;
 
     // Clean up VAD
     if (this._vadInterval) {
@@ -331,6 +425,15 @@ export default class SpeechInput {
     this._ownsMicStream = false;
 
     debugLog('speech_stopped');
+  }
+
+  /** Unfreeze game if it's stuck frozen from early tactical pause (no cinematic deploy ran) */
+  _unfreezeIfNeeded() {
+    const scene = this.gameAPI && this.gameAPI.scene;
+    if (scene && scene._tacticalFrozen && !this.gameAPI._cinematicActive) {
+      debugLog('unfreeze_after_strategy');
+      scene.unfreezeGame();
+    }
   }
 
   /** Mute to prevent feedback when AI speaks */
@@ -369,7 +472,7 @@ export default class SpeechInput {
       const response = await fetch('http://localhost:3001/api/strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameState, playerCommand }),
+        body: JSON.stringify({ gameState, playerCommand, connectorModel: window.connectorModel || null }),
       });
 
       if (!response.ok) throw new Error('Strategy API returned ' + response.status);
@@ -403,6 +506,7 @@ export default class SpeechInput {
           if (failed.length > 0) voiceLog('Failed: ' + failed.join('; '), 'error');
           if (window.__speakText) window.__speakText(msg);
           debugLog('strategy_executed', { deployed, failed, reasoning: msg });
+          this._unfreezeIfNeeded();
         }
       } else {
         // No actions — just speak the reasoning
@@ -410,10 +514,14 @@ export default class SpeechInput {
         voiceLog('Strategy: ' + msg, 'agent');
         this.addAgentMessage(msg);
         if (window.__speakText) window.__speakText(msg);
+        // Unfreeze if game was frozen by early tactical pause (no cinematic deploy to clean up)
+        this._unfreezeIfNeeded();
       }
     } catch (e) {
       debugLog('strategy_error', { error: e.message });
       voiceLog('Strategy unavailable', 'error');
+      // Unfreeze if game was frozen by early tactical pause
+      this._unfreezeIfNeeded();
     } finally {
       this._strategyPending = false;
 

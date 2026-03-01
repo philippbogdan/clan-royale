@@ -28,15 +28,29 @@ class Card extends Phaser.GameObjects.Container {
     const cost = troopClass.COST;
     this.add(scene.add.sprite(this.width / 2, this.height / 2, animKey));
 
-    // Add mana cost text
-    this.add(
-      scene.add
-        .text(0, 0, cost, { color: "blue", fontSize: "8px" })
-        .setOrigin(0, 0)
-    );
+    // Mana cost tracked for HTML overlay (smooth text)
+    this._costOverlayId = null;
+    this._costValue = cost;
+  }
+
+  // Called by Hand.updateOverlays with pre-computed world position
+  syncCostOverlay(worldX, worldY) {
+    const overlay = window.__textOverlay;
+    if (!overlay) return;
+    if (this._costOverlayId == null) {
+      this._costOverlayId = overlay.add(worldX, worldY, String(this._costValue), {
+        fontSize: 5, color: '#4444ff', stroke: '#000000', fontWeight: 'bold', fontFamily: '"Press Start 2P", monospace'
+      });
+    } else {
+      overlay.setPosition(this._costOverlayId, worldX, worldY);
+    }
   }
 
   destroy() {
+    if (window.__textOverlay && this._costOverlayId != null) {
+      window.__textOverlay.remove(this._costOverlayId);
+      this._costOverlayId = null;
+    }
     super.destroy();
   }
 }
