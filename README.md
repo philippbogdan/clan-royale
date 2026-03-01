@@ -4,6 +4,44 @@ Voice-driven real-time strategy game built with Phaser.
 
 You speak commands, the AI reasons over live game state, then deploys cards on a 10x6 battlefield.
 
+## Multi-Agent Architecture
+
+The game uses a layered multi-agent system where each player's turn flows through an **orchestrator → connector** pipeline:
+
+```
+Player speaks → Deepgram STT → Grok 4.1 Fast (orchestrator)
+                                      ↓
+                               Qwen 3 30B A3B (connector)
+                                      ↓
+                               Game action executed
+```
+
+### Agent Roles
+
+- **Orchestrator (Grok 4.1 Fast):** Receives the full game state (mana, hand, troops, towers, grid) and the player's voice command. Produces a high-level strategic intent — which card to play and where, accounting for mana, lane pressure, and tower health.
+- **Connector (Qwen 3 30B A3B):** Translates the orchestrator's strategy into a valid game action — resolving card names to exact IDs, clamping grid coordinates, and validating mana cost. This is the model we fine-tuned.
+
+### Fine-Tuning Pipeline
+
+1. **Data collection:** Recorded 1,106 orchestrator→connector decision pairs from live gameplay using `POST /api/record-gameplay`.
+2. **Training data generation:** `evaluation/generate-training-data.js` converts raw logs into chat-format JSONL (system prompt + game state → action).
+3. **Fine-tuning:** Ran SFT on Qwen 3 30B A3B via W&B Weave, producing a connector that better understands the game's card vocabulary and grid layout.
+4. **Evaluation:** `evaluation/run-match.js` runs 100 headless Playwright matches — fine-tuned connector (player) vs base connector (opponent), both orchestrated by Grok 4.1 Fast.
+
+### Evaluation Results
+
+| Metric | Fine-tuned | Base |
+|--------|-----------|------|
+| **Win rate** | **59%** | 41% |
+| Action validity | 89.0% | 86.9% |
+| Defensive rate (tower low) | 49.4% | 39.8% |
+| Mana efficiency | 72.3% | 73.1% |
+| Placement variety | 54/60 | 56/60 |
+
+**n = 100, p = 0.044** (one-sided binomial test, significant at 0.05).
+
+The fine-tuned model wins more by playing more defensively when towers are low and making fewer invalid actions — not by spending mana differently, but by spending it more wisely.
+
 ## Quick Start
 
 1. Install dependencies:

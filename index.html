@@ -156,112 +156,23 @@
         margin: 18px 0 32px;
       }
 
-      /* ---- Enter button ---- */
-      #enter-btn {
+      /* ---- "Press enter" prompt ---- */
+      #press-enter {
         font-family: "Press Start 2P", monospace;
-        font-size: clamp(10px, 1.4vw, 13px);
-        color: #1a1000;
-        background: linear-gradient(180deg, #DAA520, #B8860B 60%, #8B6914);
-        border: 2px solid #6B4F0E;
-        border-radius: 0;
-        padding: 16px 40px;
-        cursor: pointer;
+        font-size: clamp(7px, 1vw, 10px);
+        color: #8B6914;
         letter-spacing: 2px;
         text-transform: uppercase;
-        transition: transform 0.15s, border-color 0.15s;
-        outline: none;
-        -webkit-tap-highlight-color: transparent;
-        box-shadow:
-          0 0 10px rgba(184, 134, 11, 0.15),
-          inset 0 1px 0 rgba(255,255,255,0.15);
-        position: relative;
+        animation: enter-blink 2.5s ease-in-out infinite;
       }
 
-      /* Subtle glow pulse — opacity only (GPU-friendly) */
-      #enter-btn::after {
-        content: '';
-        position: absolute;
-        inset: -4px;
-        background: transparent;
-        box-shadow: 0 0 12px rgba(184, 134, 11, 0.2);
-        opacity: 0;
-        animation: btn-glow 3s ease-in-out infinite;
-        pointer-events: none;
-      }
-
-      @keyframes btn-glow {
-        0%, 100% { opacity: 0; }
+      @keyframes enter-blink {
+        0%, 100% { opacity: 0.4; }
         50% { opacity: 1; }
       }
 
-      #enter-btn:hover {
-        transform: scale(1.05);
-        box-shadow:
-          0 0 15px rgba(184, 134, 11, 0.25),
-          inset 0 1px 0 rgba(255,255,255,0.2);
-        border-color: #B8860B;
-      }
-
-      #enter-btn:active {
-        transform: scale(0.97);
-        background: linear-gradient(180deg, #DAA520, #B8960F);
-      }
-
-      .ai-mode-btn {
-        font-family: "Press Start 2P", monospace;
-        font-size: clamp(6px, 0.9vw, 8px);
-        color: #DAA520;
-        background: rgba(184, 134, 11, 0.1);
-        border: 1px solid rgba(184, 134, 11, 0.35);
-        border-radius: 0;
-        padding: 10px 18px;
-        cursor: pointer;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        transition: transform 0.15s, background 0.15s, border-color 0.15s;
-        outline: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      .ai-mode-btn:hover {
-        transform: scale(1.05);
-        background: rgba(184, 134, 11, 0.2);
-        border-color: rgba(184, 134, 11, 0.6);
-      }
-
-      .ai-mode-btn:active {
-        transform: scale(0.97);
-        background: rgba(184, 134, 11, 0.25);
-      }
-
-      #ai-ft-btn {
-        color: #4af;
-        border-color: rgba(68, 170, 255, 0.35);
-        background: rgba(68, 170, 255, 0.08);
-      }
-
-      #ai-ft-btn:hover {
-        background: rgba(68, 170, 255, 0.18);
-        border-color: rgba(68, 170, 255, 0.6);
-      }
-
-      #mic-error {
-        font-family: "Press Start 2P", monospace;
-        font-size: 8px;
-        color: #FF6B6B;
-        margin-top: 12px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        text-align: center;
-        line-height: 1.6;
-      }
-
-      #mic-error.visible {
-        opacity: 1;
-      }
-
-      /* ---- Report button (bottom-right) ---- */
-      #report-btn {
+      /* ---- Lab flask button (bottom-right) ---- */
+      #lab-btn {
         position: fixed;
         bottom: 24px;
         right: 24px;
@@ -279,19 +190,18 @@
         transition: transform 0.15s, box-shadow 0.15s;
         outline: none;
         -webkit-tap-highlight-color: transparent;
-        text-decoration: none;
       }
 
-      #report-btn:hover {
+      #lab-btn:hover {
         transform: scale(1.1);
         box-shadow: 0 0 18px rgba(184, 134, 11, 0.4);
       }
 
-      #report-btn:active {
+      #lab-btn:active {
         transform: scale(0.95);
       }
 
-      #report-btn svg {
+      #lab-btn svg {
         width: 22px;
         height: 22px;
         fill: none;
@@ -299,6 +209,97 @@
         stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
+      }
+
+      /* ---- Lab popover ---- */
+      #lab-popover {
+        position: fixed;
+        bottom: 82px;
+        right: 24px;
+        z-index: 101;
+        background: #1a1200;
+        border: 1px solid #6B4F0E;
+        display: none;
+        flex-direction: column;
+        min-width: 180px;
+      }
+
+      #lab-popover.open {
+        display: flex;
+      }
+
+      .lab-item {
+        font-family: "Press Start 2P", monospace;
+        font-size: 7px;
+        color: #DAA520;
+        background: none;
+        border: none;
+        border-bottom: 1px solid rgba(107, 79, 14, 0.3);
+        padding: 12px 16px;
+        cursor: pointer;
+        text-align: left;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        transition: background 0.15s;
+      }
+
+      .lab-item:last-child {
+        border-bottom: none;
+      }
+
+      .lab-item:hover {
+        background: rgba(184, 134, 11, 0.15);
+      }
+
+      /* ---- Original game iframe overlay ---- */
+      #original-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: #000;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #original-overlay.active {
+        display: flex;
+      }
+
+      #original-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      #upgrade-btn {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 201;
+        font-family: "Press Start 2P", monospace;
+        font-size: clamp(8px, 1.2vw, 11px);
+        color: #1a1000;
+        background: linear-gradient(180deg, #DAA520, #B8860B 60%, #8B6914);
+        border: 2px solid #6B4F0E;
+        padding: 14px 32px;
+        cursor: pointer;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        display: none;
+        animation: upgrade-pulse 1.5s ease-in-out infinite;
+        box-shadow: 0 0 20px rgba(184, 134, 11, 0.4);
+      }
+
+      @keyframes upgrade-pulse {
+        0%, 100% { box-shadow: 0 0 20px rgba(184, 134, 11, 0.4); }
+        50% { box-shadow: 0 0 35px rgba(184, 134, 11, 0.7); }
+      }
+
+      #upgrade-btn:hover {
+        transform: translate(-50%, -50%) scale(1.08);
       }
 
     </style>
@@ -314,21 +315,22 @@
           <div id="landing-title">CLAN<br>ROYALE</div>
         </div>
         <div class="landing-divider"></div>
-        <button id="enter-btn">ENTER BATTLE</button>
-        <div style="display:flex;gap:10px;margin-top:14px;">
-          <button class="ai-mode-btn" id="play-base-btn">PLAY (BASE)</button>
-          <button class="ai-mode-btn" id="play-ft-btn">PLAY (FINE-TUNED)</button>
-        </div>
-        <div style="display:flex;gap:10px;margin-top:8px;">
-          <button class="ai-mode-btn" id="ai-base-btn">BASE vs BASE</button>
-          <button class="ai-mode-btn" id="ai-ft-btn">FINE-TUNED vs BASE</button>
-        </div>
-        <div id="mic-error"></div>
+        <div id="press-enter">Press enter to play</div>
       </div>
     </div>
 
-    <!-- Report link -->
-    <a id="report-btn" title="Evaluation Report" target="_blank">
+    <!-- Original game overlay -->
+    <div id="original-overlay">
+      <iframe id="original-iframe" src="about:blank"></iframe>
+      <button id="upgrade-btn">UPGRADE TO CLAN ROYALE</button>
+    </div>
+
+    <!-- Lab flask + popover -->
+    <div id="lab-popover">
+      <button class="lab-item" id="lab-ft-vs-base">Fine-tuned vs Base</button>
+      <button class="lab-item" id="lab-report">Evaluation Report</button>
+    </div>
+    <button id="lab-btn" title="Lab">
       <svg viewBox="0 0 24 24">
         <path d="M9 3L9 8C9 8 7 12 7 15C7 18 9 21 12 21C15 21 17 18 17 15C17 12 15 8 15 8L15 3"/>
         <line x1="9" y1="3" x2="15" y2="3"/>
@@ -336,7 +338,7 @@
         <circle cx="11" cy="15" r="1" fill="#1a1000" stroke="none"/>
         <circle cx="14" cy="13" r="0.7" fill="#1a1000" stroke="none"/>
       </svg>
-    </a>
+    </button>
 
     <div id="game-container"></div>
 
@@ -425,71 +427,86 @@
       })();
 
 
-      // ---- Mic + launch ----
-      document.getElementById("enter-btn").addEventListener("click", function() {
-        var btn = this;
-        btn.disabled = true;
-        btn.textContent = "...";
+      // ---- Press Enter → show original game first ----
+      var enterUsed = false;
+      document.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !enterUsed) {
+          enterUsed = true;
+          showOriginalGame();
+        }
+      });
+
+      function showOriginalGame() {
+        var overlay = document.getElementById("original-overlay");
+        var iframe = document.getElementById("original-iframe");
+        var upgradeBtn = document.getElementById("upgrade-btn");
+
+        overlay.classList.add("active");
+        iframe.src = "https://pyxld-kris.github.io/clash-royale-clone/";
+
+        // Fade out landing
+        var landing = document.getElementById("landing");
+        landing.classList.add("fade-out");
+        window.__stopParticles();
+        setTimeout(function() { landing.style.display = "none"; }, 600);
+
+        // Show upgrade button after 7s
+        setTimeout(function() {
+          upgradeBtn.style.display = "block";
+        }, 7000);
+      }
+
+      // ---- Upgrade button → dismiss original, launch real game ----
+      document.getElementById("upgrade-btn").addEventListener("click", function() {
+        var overlay = document.getElementById("original-overlay");
+        var iframe = document.getElementById("original-iframe");
+        this.style.display = "none";
+
         window.gameMode = 'player';
 
         navigator.mediaDevices.getUserMedia({ audio: true })
           .then(function(stream) {
             window.__micStream = stream;
-            dismissLanding();
+            launchReal();
           })
           .catch(function() {
-            var err = document.getElementById("mic-error");
-            err.textContent = "MIC DENIED — TEXT-ONLY MODE";
-            err.classList.add("visible");
-            setTimeout(dismissLanding, 1500);
+            launchReal();
           });
+
+        function launchReal() {
+          iframe.src = "about:blank";
+          overlay.classList.remove("active");
+          if (typeof window.startGame === "function") {
+            window.startGame();
+          }
+        }
       });
 
-      // ---- Play with base Qwen connector ----
-      document.getElementById("play-base-btn").addEventListener("click", function() {
-        window.gameMode = 'player';
-        window.connectorModel = 'qwen-base';
-        navigator.mediaDevices.getUserMedia({ audio: true })
-          .then(function(stream) { window.__micStream = stream; dismissLanding(); })
-          .catch(function() {
-            var err = document.getElementById("mic-error");
-            err.textContent = "MIC DENIED — TEXT-ONLY MODE";
-            err.classList.add("visible");
-            setTimeout(dismissLanding, 1500);
-          });
+      // ---- Lab flask popover toggle ----
+      document.getElementById("lab-btn").addEventListener("click", function(e) {
+        e.stopPropagation();
+        document.getElementById("lab-popover").classList.toggle("open");
       });
 
-      // ---- Play with fine-tuned Qwen connector ----
-      document.getElementById("play-ft-btn").addEventListener("click", function() {
-        window.gameMode = 'player';
-        window.connectorModel = 'qwen-finetuned';
-        navigator.mediaDevices.getUserMedia({ audio: true })
-          .then(function(stream) { window.__micStream = stream; dismissLanding(); })
-          .catch(function() {
-            var err = document.getElementById("mic-error");
-            err.textContent = "MIC DENIED — TEXT-ONLY MODE";
-            err.classList.add("visible");
-            setTimeout(dismissLanding, 1500);
-          });
+      // Close popover on outside click
+      document.addEventListener("click", function() {
+        document.getElementById("lab-popover").classList.remove("open");
+      });
+      document.getElementById("lab-popover").addEventListener("click", function(e) {
+        e.stopPropagation();
       });
 
-      // ---- AI vs AI (spectator) launch — Base vs Base ----
-      document.getElementById("ai-base-btn").addEventListener("click", function() {
-        window.gameMode = 'spectator';
-        window.spectatorModelType = 'base';
-        dismissLanding();
-      });
-
-      // ---- AI vs AI (spectator) launch — Fine-tuned vs Base ----
-      document.getElementById("ai-ft-btn").addEventListener("click", function() {
+      // ---- Lab: Fine-tuned vs Base (spectator) ----
+      document.getElementById("lab-ft-vs-base").addEventListener("click", function() {
+        document.getElementById("lab-popover").classList.remove("open");
         window.gameMode = 'spectator';
         window.spectatorModelType = 'finetuned';
         dismissLanding();
       });
 
-      // ---- Report button ----
-      document.getElementById("report-btn").addEventListener("click", function(e) {
-        e.preventDefault();
+      // ---- Lab: Report ----
+      document.getElementById("lab-report").addEventListener("click", function() {
+        document.getElementById("lab-popover").classList.remove("open");
         window.open(window.location.origin + "/report.html", "_blank");
       });
 
