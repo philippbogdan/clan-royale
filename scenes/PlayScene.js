@@ -1,17 +1,35 @@
-import { Phaser, Scene } from "phaser";
+import { Scene } from "phaser";
 
 import ControlledPlayer from "../classes/player/ControlledPlayer.js";
 import ComputerPlayer from "../classes/player/ComputerPlayer.js";
 import GameAPI from "../classes/GameAPI.js";
-import VoiceSession from "../classes/VoiceSession.js";
 import SpeechInput from "../classes/SpeechInput.js";
-
+import VoiceSession from "../classes/VoiceSession.js";
 import Components from "../classes/entities/components";
-
-import WeatherSystem from "../weather";
-
 import genAnims from "../helpers/generateAnimations";
 import genTerrain from "../helpers/generateTerrain";
+import { getApiUrl } from "../settings/api.js";
+import {
+  DEFAULT_DEPLOY_Y,
+  GAME_HEIGHT,
+  GRID_CENTER_OFFSET_Y,
+  GRID_ORIGIN_Y,
+  GRID_ROW_HEIGHT,
+  LEFT_DEPLOY_X,
+  PLAYER_GRID,
+  RIGHT_DEPLOY_X
+} from "../settings/gameConstants.js";
+import WeatherSystem from "../weather";
+
+const AI_LOOP_INTERVAL_MS = 5000;
+const OPPONENT_AI_OFFSET_MS = 2500;
+const HIT_SFX_COOLDOWN_MS = 1200;
+
+const SFX_CONFIG = {
+  "sfx-hit": { name: "hit", volume: 0.08 },
+  "sfx-spawn": { name: "spawn", volume: 0.15 },
+  "sfx-destroy": { name: "destroy", volume: 0.07 }
+};
 
 export default class PlayScene extends Scene {
   constructor() {
@@ -20,313 +38,310 @@ export default class PlayScene extends Scene {
 
   create() {
     try {
-      this.isSpectatorMode = window.gameMode === 'spectator';
-
-      // Start UIScene, which will layer on top of PlayScene
+      this.isSpectatorMode = window.gameMode === "spectator";
       this.scene.run("UIScene");
-
-      // helper function to generate our sprite anims
       genAnims(this);
 
-      const gameWidth = this.game.config.width;
-      const gameHeight = this.game.config.height;
-      const halfGameWidth = gameWidth / 2;
-      const halfGameHeight = gameHeight / 2;
+      this._initDimensions();
+      this._setupWorldAndCamera();
 
-      this.cardHolderWidth = gameWidth;
-      this.cardHolderHeight = this.isSpectatorMode ? 0 : 46;
-
-      // Set the physics world size
-      this.physics.world.setBounds(
-        0,
-        0,
-        this.game.config.width,
-        this.game.config.height - this.cardHolderHeight
-      );
-
-      this.camera = this.cameras.main;
-      this.camera.setBounds(
-        0,
-        0,
-        this.game.config.width,
-        this.game.config.height
-      );
-
-      /*
-      this.physics.world.bounds.width,
-      this.physics.world.bounds.height
-    */
-
-      // Reset stuff from previous rounds...
       Components.HasDestructionParticles.particles = null;
-
-      // Create background, and do really simple animation
-      this.background = this.add
-        .sprite(halfGameWidth, halfGameHeight, "background")
-        .setOrigin(0.5, 0.5)
-        .setTint(0x228800);
-
-      if (this.isSpectatorMode) {
-        // Both sides are AI-controlled ComputerPlayers
-        this.player = new ComputerPlayer(this, 'bottom');
-        this.opponent = new ComputerPlayer(this);
-      } else {
-        this.player = new ControlledPlayer(this);
-        this.opponent = new ComputerPlayer(this);
-      }
-
-      this.player.setOpponent(this.opponent);
-      this.opponent.setOpponent(this.player);
-
-      // Set up opponent troops attacking player troops
-      this.physics.add.overlap(
-        this.opponent.aggroAreas,
-        this.player.troops,
-        (aggroArea, enemyTroop) => {
-          const thisTroop = aggroArea.troop;
-          if (!thisTroop || thisTroop.isDestroyed || enemyTroop.isDestroyed) return;
-          thisTroop.initiateEffect(enemyTroop);
-          const now = Date.now();
-          if (now - this._lastHitSfxTime > 1200) {
-            this._lastHitSfxTime = now;
-            if (window.__playSFX) window.__playSFX('hit');
-          }
-        }
-      );
-
-      // Set up player troops attacking opponent troops
-      this.physics.add.overlap(
-        this.player.aggroAreas,
-        this.opponent.troops,
-        (aggroArea, enemyTroop) => {
-          const thisTroop = aggroArea.troop;
-          if (!thisTroop || thisTroop.isDestroyed || enemyTroop.isDestroyed) return;
-          thisTroop.initiateEffect(enemyTroop);
-          const now = Date.now();
-          if (now - this._lastHitSfxTime > 1200) {
-            this._lastHitSfxTime = now;
-            if (window.__playSFX) window.__playSFX('hit');
-          }
-        }
-      );
+      this._createBackground();
+      this._createPlayers();
+      this._setupCombatOverlaps();
 
       genTerrain(this);
-
-      // add these colliders here to the groups instead of
-      // in each troop creation for code cleanup.
-      //this.physics.add.collider(this.player.troops, this.trees);
-      //this.physics.add.collider(this.opponent.troops, this.trees);
-      /*
-      this.physics.add.collider(this.player.troops, this.opponent.troops);
-      this.physics.add.collider(this.player.troops, this.player.troops);
-      this.physics.add.collider(this.opponent.troops, this.opponent.troops);
-      */
-      this.physics.add.collider(
-        this.player.walkingTroops,
-        this.opponent.walkingTroops
-      );
-      this.physics.add.collider(
-        this.player.walkingTroops,
-        this.player.walkingTroops
-      );
-      this.physics.add.collider(
-        this.opponent.walkingTroops,
-        this.opponent.walkingTroops
-      );
-
-      this.physics.add.collider(
-        this.player.flyingTroops,
-        this.opponent.flyingTroops
-      );
-      this.physics.add.collider(
-        this.player.flyingTroops,
-        this.player.flyingTroops
-      );
-      this.physics.add.collider(
-        this.opponent.flyingTroops,
-        this.opponent.flyingTroops
-      );
-
-      this.physics.add.collider(this.player.walkingTroops, this.river);
-      this.physics.add.collider(this.opponent.walkingTroops, this.river);
+      this._setupPhysicsColliders();
 
       this.weather = new WeatherSystem(this);
-
-      // --- Background music ---
-      try {
-        if (this.cache.audio.exists('music')) {
-          this.bgMusic = this.sound.add('music', { volume: 0.15, loop: true });
-          this.time.delayedCall(500, () => {
-            if (this.bgMusic) this.bgMusic.play();
-          });
-        }
-      } catch (e) {
-        console.warn('Could not start background music:', e);
-      }
-
-      // --- SFX ---
-      this._sfx = {};
-      this._lastHitSfxTime = 0;
-      const sfxConfig = { 'sfx-hit': { name: 'hit', volume: 0.08 }, 'sfx-spawn': { name: 'spawn', volume: 0.15 }, 'sfx-destroy': { name: 'destroy', volume: 0.07 } };
-      for (const [key, cfg] of Object.entries(sfxConfig)) {
-        if (this.cache.audio.exists(key)) {
-          this._sfx[cfg.name] = this.sound.add(key, { volume: cfg.volume });
-        }
-      }
-      const self = this;
-      window.__playSFX = (name) => {
-        if (self._sfx && self._sfx[name]) self._sfx[name].play();
-      };
-
-      // Expose GameAPI for AI voice control
-      this.gameAPI = new GameAPI(this);
-      window.gameAPI = this.gameAPI;
-
-      if (this.isSpectatorMode) {
-        // --- Spectator mode: AI controls both sides ---
-
-        // Disable built-in random AI for both ComputerPlayers
-        if (this.player.decisionInterval) this.player.decisionInterval.paused = true;
-        if (this.opponent.decisionInterval) this.opponent.decisionInterval.paused = true;
-
-        // AI loop for PLAYER side (every 5s)
-        this._aiLoopPlayer = this.time.addEvent({
-          delay: 5000,
-          loop: true,
-          callback: () => this._runAITurn('player'),
-          callbackScope: this
-        });
-
-        // AI loop for OPPONENT side (every 5s, offset by 2.5s)
-        this.time.delayedCall(2500, () => {
-          this._aiLoopOpponent = this.time.addEvent({
-            delay: 5000,
-            loop: true,
-            callback: () => this._runAITurn('opponent'),
-            callbackScope: this
-          });
-        });
-      } else {
-        // --- Normal player mode: voice control ---
-        this.speechInput = new SpeechInput(this.gameAPI);
-        window.__speechInput = this.speechInput;
-        this.speechInput.start();
-
-        this.voiceSession = new VoiceSession(this.gameAPI);
-        this.speechInput.onTranscript = (text, isFinal) => {
-          if (this.voiceSession && this.voiceSession.isActive()) {
-            try { this.voiceSession.sendText(text); } catch(e) { /* ignore */ }
-          }
-        };
-        if (window.__ELEVENLABS_AGENT_ID) {
-          this.voiceSession.start(window.__ELEVENLABS_AGENT_ID);
-        }
-
-        // If opponent model type is set, replace random AI with API-driven AI
-        if (window.opponentModelType) {
-          if (this.opponent.decisionInterval) this.opponent.decisionInterval.paused = true;
-          this._aiLoopOpponent = this.time.addEvent({
-            delay: 5000,
-            loop: true,
-            callback: () => this._runAITurn('opponent'),
-            callbackScope: this
-          });
-        }
-      }
-
-      // Check win condition whenever towers are destroyed!
-      // Towers emit a "tower-destroyed" event to the scene when destroyed
-      this._sceneEnding = false;
-      this.events.on("tower-destroyed", (data) => {
-        try {
-          if (this._sceneEnding) return;
-          // Tower destroy sound disabled — too harsh
-
-          // Game ends when a king tower is destroyed
-          if (data && data.isKingTower) {
-            this._sceneEnding = true;
-            this.events.off("tower-destroyed");
-            if (this.bgMusic) {
-              this.bgMusic.stop();
-              this.bgMusic = null;
-            }
-            this.scene.stop("UIScene");
-            this.physics.world.shutdown();
-            if (data.owner === this.player) {
-              this.scene.start("LoseScene");
-            } else {
-              this.scene.start("WinScene");
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      });
+      this._setupAudio();
+      this._setupGameApi();
+      this._setupControlMode();
+      this._setupWinConditionHandler();
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  _initDimensions() {
+    this.gameWidth = this.game.config.width;
+    this.gameHeight = this.game.config.height;
+    this.halfGameWidth = this.gameWidth / 2;
+    this.halfGameHeight = this.gameHeight / 2;
+
+    this.cardHolderWidth = this.gameWidth;
+    this.cardHolderHeight = this.isSpectatorMode ? 0 : 46;
+  }
+
+  _setupWorldAndCamera() {
+    this.physics.world.setBounds(
+      0,
+      0,
+      this.gameWidth,
+      this.gameHeight - this.cardHolderHeight
+    );
+
+    this.camera = this.cameras.main;
+    this.camera.setBounds(0, 0, this.gameWidth, this.gameHeight);
+  }
+
+  _createBackground() {
+    this.background = this.add
+      .sprite(this.halfGameWidth, this.halfGameHeight, "background")
+      .setOrigin(0.5, 0.5)
+      .setTint(0x228800);
+  }
+
+  _createPlayers() {
+    if (this.isSpectatorMode) {
+      this.player = new ComputerPlayer(this, "bottom");
+      this.opponent = new ComputerPlayer(this);
+    } else {
+      this.player = new ControlledPlayer(this);
+      this.opponent = new ComputerPlayer(this);
+    }
+
+    this.player.setOpponent(this.opponent);
+    this.opponent.setOpponent(this.player);
+  }
+
+  _setupCombatOverlaps() {
+    this._registerAggroOverlap(this.opponent.aggroAreas, this.player.troops);
+    this._registerAggroOverlap(this.player.aggroAreas, this.opponent.troops);
+  }
+
+  _registerAggroOverlap(attackerAggroAreas, defenderTroops) {
+    this.physics.add.overlap(
+      attackerAggroAreas,
+      defenderTroops,
+      (aggroArea, enemyTroop) => {
+        const sourceTroop = aggroArea.troop;
+        if (!sourceTroop || sourceTroop.isDestroyed || enemyTroop.isDestroyed) {
+          return;
+        }
+
+        sourceTroop.initiateEffect(enemyTroop);
+        this._playHitSfx();
+      }
+    );
+  }
+
+  _setupPhysicsColliders() {
+    this.physics.add.collider(this.player.walkingTroops, this.opponent.walkingTroops);
+    this.physics.add.collider(this.player.walkingTroops, this.player.walkingTroops);
+    this.physics.add.collider(this.opponent.walkingTroops, this.opponent.walkingTroops);
+
+    this.physics.add.collider(this.player.flyingTroops, this.opponent.flyingTroops);
+    this.physics.add.collider(this.player.flyingTroops, this.player.flyingTroops);
+    this.physics.add.collider(this.opponent.flyingTroops, this.opponent.flyingTroops);
+
+    this.physics.add.collider(this.player.walkingTroops, this.river);
+    this.physics.add.collider(this.opponent.walkingTroops, this.river);
+  }
+
+  _setupAudio() {
+    this._sfx = {};
+    this._lastHitSfxTime = 0;
+    this._setupBackgroundMusic();
+    this._setupSfx();
+  }
+
+  _setupBackgroundMusic() {
+    try {
+      if (!this.cache.audio.exists("music")) {
+        return;
+      }
+
+      this.bgMusic = this.sound.add("music", { volume: 0.15, loop: true });
+      this.time.delayedCall(500, () => {
+        if (this.bgMusic) {
+          this.bgMusic.play();
+        }
+      });
+    } catch (error) {
+      console.warn("Could not start background music:", error);
+    }
+  }
+
+  _setupSfx() {
+    for (const [assetKey, cfg] of Object.entries(SFX_CONFIG)) {
+      if (this.cache.audio.exists(assetKey)) {
+        this._sfx[cfg.name] = this.sound.add(assetKey, { volume: cfg.volume });
+      }
+    }
+
+    window.__playSFX = name => {
+      if (this._sfx && this._sfx[name]) {
+        this._sfx[name].play();
+      }
+    };
+  }
+
+  _playHitSfx() {
+    const now = Date.now();
+    if (now - this._lastHitSfxTime <= HIT_SFX_COOLDOWN_MS) {
+      return;
+    }
+
+    this._lastHitSfxTime = now;
+    if (window.__playSFX) {
+      window.__playSFX("hit");
+    }
+  }
+
+  _setupGameApi() {
+    this.gameAPI = new GameAPI(this);
+    window.gameAPI = this.gameAPI;
+  }
+
+  _setupControlMode() {
+    if (this.isSpectatorMode) {
+      this._setupSpectatorMode();
+      return;
+    }
+
+    this._setupVoiceMode();
+  }
+
+  _setupSpectatorMode() {
+    this._pauseNativeComputerAI(this.player);
+    this._pauseNativeComputerAI(this.opponent);
+
+    this._aiLoopPlayer = this.time.addEvent({
+      delay: AI_LOOP_INTERVAL_MS,
+      loop: true,
+      callback: () => this._runAITurn("player"),
+      callbackScope: this
+    });
+
+    this.time.delayedCall(OPPONENT_AI_OFFSET_MS, () => {
+      this._aiLoopOpponent = this.time.addEvent({
+        delay: AI_LOOP_INTERVAL_MS,
+        loop: true,
+        callback: () => this._runAITurn("opponent"),
+        callbackScope: this
+      });
+    });
+  }
+
+  _setupVoiceMode() {
+    this.speechInput = new SpeechInput(this.gameAPI);
+    window.__speechInput = this.speechInput;
+    this.speechInput.start();
+
+    this.voiceSession = new VoiceSession(this.gameAPI);
+    this.speechInput.onTranscript = text => {
+      if (!this.voiceSession || !this.voiceSession.isActive()) {
+        return;
+      }
+
+      try {
+        this.voiceSession.sendText(text);
+      } catch (err) {
+        // Ignore send races during reconnects.
+      }
+    };
+
+    if (window.__ELEVENLABS_AGENT_ID) {
+      this.voiceSession.start(window.__ELEVENLABS_AGENT_ID);
+    }
+
+    if (window.opponentModelType) {
+      this._pauseNativeComputerAI(this.opponent);
+      this._aiLoopOpponent = this.time.addEvent({
+        delay: AI_LOOP_INTERVAL_MS,
+        loop: true,
+        callback: () => this._runAITurn("opponent"),
+        callbackScope: this
+      });
+    }
+  }
+
+  _setupWinConditionHandler() {
+    this._sceneEnding = false;
+    this.events.on("tower-destroyed", data => {
+      try {
+        if (this._sceneEnding) {
+          return;
+        }
+
+        if (!data || !data.isKingTower) {
+          return;
+        }
+
+        this._sceneEnding = true;
+        this.events.off("tower-destroyed");
+        this._stopBackgroundMusic();
+        this.scene.stop("UIScene");
+        this.physics.world.shutdown();
+
+        if (data.owner === this.player) {
+          this.scene.start("LoseScene");
+        } else {
+          this.scene.start("WinScene");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  _pauseNativeComputerAI(player) {
+    if (player && player.decisionInterval) {
+      player.decisionInterval.paused = true;
     }
   }
 
   freezeGame() {
     this.physics.pause();
     this._tacticalFrozen = true;
-    // Pause the opponent's decision/spawn timer
+
     if (this.opponent && this.opponent.decisionInterval) {
       this.opponent.decisionInterval.paused = true;
     }
-    // Pause mana regen for both players
-    if (this.player && this.player.manaBank && this.player.manaBank.regenEvent) {
-      this.player.manaBank.regenEvent.paused = true;
-    }
-    if (this.opponent && this.opponent.manaBank && this.opponent.manaBank.regenEvent) {
-      this.opponent.manaBank.regenEvent.paused = true;
-    }
-    // Pause all tweens on troops so attack animations freeze
+
+    this._setManaRegenPaused(this.player, true);
+    this._setManaRegenPaused(this.opponent, true);
     this.tweens.pauseAll();
-    this.events.emit('tactical-freeze');
+    this.events.emit("tactical-freeze");
   }
 
   unfreezeGame() {
     this._tacticalFrozen = false;
     this.physics.resume();
-    // Resume the opponent's decision/spawn timer
+
     if (this.opponent && this.opponent.decisionInterval) {
       this.opponent.decisionInterval.paused = false;
     }
-    // Resume mana regen for both players
-    if (this.player && this.player.manaBank && this.player.manaBank.regenEvent) {
-      this.player.manaBank.regenEvent.paused = false;
-    }
-    if (this.opponent && this.opponent.manaBank && this.opponent.manaBank.regenEvent) {
-      this.opponent.manaBank.regenEvent.paused = false;
-    }
-    // Resume all tweens
+
+    this._setManaRegenPaused(this.player, false);
+    this._setManaRegenPaused(this.opponent, false);
     this.tweens.resumeAll();
-    this.events.emit('tactical-unfreeze');
+    this.events.emit("tactical-unfreeze");
   }
 
-  // --- Spectator AI turn logic ---
+  _setManaRegenPaused(player, paused) {
+    if (player && player.manaBank && player.manaBank.regenEvent) {
+      player.manaBank.regenEvent.paused = paused;
+    }
+  }
 
   async _runAITurn(side) {
-    if (this._sceneEnding) return;
-    if (this['_aiRunning_' + side]) return; // prevent overlapping calls
-    this['_aiRunning_' + side] = true;
+    if (this._sceneEnding || this[`_aiRunning_${side}`]) {
+      return;
+    }
+    this[`_aiRunning_${side}`] = true;
 
     try {
-      let gameState;
-      let modelType;
+      const isPlayerSide = side === "player";
+      const gameState = this._buildGameStateForSide(side);
+      const modelType = isPlayerSide
+        ? window.spectatorModelType || "base"
+        : window.opponentModelType || "base";
 
-      if (side === 'player') {
-        gameState = this._buildGameStateForSide('player');
-        modelType = window.spectatorModelType || 'base';
-      } else {
-        gameState = this._buildGameStateForSide('opponent');
-        modelType = window.opponentModelType || (this.isSpectatorMode ? 'base' : 'base');
-      }
-
-      const response = await fetch('http://localhost:3001/api/ai-turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(getApiUrl("/api/ai-turn"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameState, modelType, side })
       });
 
@@ -336,49 +351,59 @@ export default class PlayScene extends Scene {
       }
 
       const decision = await response.json();
-      const actions = decision.connector && decision.connector.actions ? decision.connector.actions : [];
-
-      if (actions.length === 0) return;
-
-      if (side === 'player') {
-        // Execute on player-side ComputerPlayer
-        for (const action of actions) {
-          let x, y;
-          if (action.col != null && action.row != null) {
-            const px = GameAPI.gridToPixel(action.col, action.row);
-            x = px.x; y = px.y;
-          } else {
-            x = action.lane === 'left' ? 40 : 120;
-            y = 180;
-          }
-          this.player.spawnTroopByName(action.card, x, y);
-        }
-      } else {
-        // Execute on opponent-side ComputerPlayer with mirrored rows
-        for (const action of actions) {
-          const mirroredRow = action.row != null ? (5 - action.row) : 2;
-          const col = action.col != null ? action.col : (action.lane === 'left' ? 2 : 7);
-          const px = GameAPI.gridToPixel(col, mirroredRow);
-          this.opponent.spawnTroopByName(action.card, px.x, px.y);
-        }
+      const actions = decision.connector && decision.connector.actions
+        ? decision.connector.actions
+        : [];
+      if (actions.length === 0) {
+        return;
       }
 
-      // Emit decision event for UIScene
-      this.events.emit('ai-decision', { side, decision });
+      this._executeAIActions(side, actions);
+      this.events.emit("ai-decision", { side, decision });
 
-      // Record for training data
       if (this.gameAPI) {
         this.gameAPI.recordDecision(gameState, actions, side);
       }
-    } catch (err) {
-      console.error(`[AI Turn] ${side} error:`, err);
+    } catch (error) {
+      console.error(`[AI Turn] ${side} error:`, error);
     } finally {
-      this['_aiRunning_' + side] = false;
+      this[`_aiRunning_${side}`] = false;
     }
   }
 
+  _executeAIActions(side, actions) {
+    if (side === "player") {
+      for (const action of actions) {
+        const { x, y } = this._resolveActionPosition(action);
+        this.player.spawnTroopByName(action.card, x, y);
+      }
+      return;
+    }
+
+    for (const action of actions) {
+      const col = action.col != null ? action.col : action.lane === "left" ? 2 : 7;
+      const row = action.row != null ? action.row : 2;
+      const { x } = GameAPI.gridToPixel(col, row);
+      // Mirror Y into the top half: opponent's grid is the player grid reflected
+      const playerY = GRID_ORIGIN_Y + row * GRID_ROW_HEIGHT + GRID_CENTER_OFFSET_Y;
+      const y = GAME_HEIGHT - playerY;
+      this.opponent.spawnTroopByName(action.card, x, y);
+    }
+  }
+
+  _resolveActionPosition(action) {
+    if (action.col != null && action.row != null) {
+      return GameAPI.gridToPixel(action.col, action.row);
+    }
+
+    return {
+      x: action.lane === "left" ? LEFT_DEPLOY_X : RIGHT_DEPLOY_X,
+      y: DEFAULT_DEPLOY_Y
+    };
+  }
+
   _buildGameStateForSide(side) {
-    if (side === 'player') {
+    if (side === "player") {
       return {
         mana: Math.floor(this.player.manaBank.getManaAmount()),
         maxMana: 10,
@@ -389,47 +414,83 @@ export default class PlayScene extends Scene {
         opponentTowers: this.gameAPI._serializeTowers(this.opponent),
         gameStatus: this.gameAPI.gameStatus,
         queue: [],
-        grid: { cols: 10, rows: 6, bridges: [{ col: 1, side: "left" }, { col: 8, side: "right" }] }
-      };
-    } else {
-      // Mirrored: opponent sees itself as "my" side
-      return {
-        mana: Math.floor(this.opponent.manaBank.getManaAmount()),
-        maxMana: 10,
-        hand: this.opponent.getVirtualHandState(),
-        myTroops: this.gameAPI._serializeTroops(this.opponent),
-        opponentTroops: this.gameAPI._serializeTroops(this.player),
-        myTowers: this.gameAPI._serializeTowers(this.opponent),
-        opponentTowers: this.gameAPI._serializeTowers(this.player),
-        gameStatus: this.gameAPI.gameStatus,
-        queue: [],
-        grid: { cols: 10, rows: 6, bridges: [{ col: 1, side: "left" }, { col: 8, side: "right" }] }
+        grid: PLAYER_GRID
       };
     }
+
+    return {
+      mana: Math.floor(this.opponent.manaBank.getManaAmount()),
+      maxMana: 10,
+      hand: this.opponent.getVirtualHandState(),
+      myTroops: this.gameAPI._serializeTroops(this.opponent),
+      opponentTroops: this.gameAPI._serializeTroops(this.player),
+      myTowers: this.gameAPI._serializeTowers(this.opponent),
+      opponentTowers: this.gameAPI._serializeTowers(this.player),
+      gameStatus: this.gameAPI.gameStatus,
+      queue: [],
+      grid: PLAYER_GRID
+    };
   }
 
-  update(time, delta) {
-    if (window.__textOverlay) window.__textOverlay.update();
-    if (!this.isSpectatorMode && this.player && this.player.cardArea && this.player.cardArea.hand) {
+  update() {
+    if (window.__textOverlay) {
+      window.__textOverlay.update();
+    }
+
+    if (
+      !this.isSpectatorMode &&
+      this.player &&
+      this.player.cardArea &&
+      this.player.cardArea.hand
+    ) {
       this.player.cardArea.hand.updateOverlays();
     }
+
     if (this.gameAPI && !this._sceneEnding && !this.isSpectatorMode) {
       this.gameAPI.processQueue();
     }
   }
 
   destroy() {
-    // Stop background music
+    this._stopBackgroundMusic();
+
+    if (this._aiLoopPlayer) {
+      this._aiLoopPlayer.remove();
+      this._aiLoopPlayer = null;
+    }
+    if (this._aiLoopOpponent) {
+      this._aiLoopOpponent.remove();
+      this._aiLoopOpponent = null;
+    }
+
+    if (this.speechInput) {
+      this.speechInput.stop();
+      this.speechInput = null;
+      window.__speechInput = null;
+    }
+
+    if (this.voiceSession) {
+      this.voiceSession.stop().catch(() => {});
+      this.voiceSession = null;
+    }
+
+    this._sfx = {};
+    window.__playSFX = null;
+
+    if (this.player) {
+      this.player.destroy();
+    }
+    if (this.opponent) {
+      this.opponent.destroy();
+    }
+
+    super.destroy();
+  }
+
+  _stopBackgroundMusic() {
     if (this.bgMusic) {
       this.bgMusic.stop();
       this.bgMusic = null;
     }
-    // Clean up SFX
-    this._sfx = {};
-    window.__playSFX = null;
-
-    this.player.destroy();
-    this.opponent.destroy();
-    super.destroy();
   }
 }

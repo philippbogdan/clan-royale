@@ -1,4 +1,5 @@
 import VoiceSession from "../VoiceSession.js";
+import { getApiUrl } from "../../settings/api.js";
 
 const STATUS_LABELS = {
   disconnected: "Ready",
@@ -240,7 +241,7 @@ export default class VoiceUI {
     this.voiceSession = new VoiceSession(gameAPI);
 
     if (!agentId) {
-      fetch('http://localhost:3001/api/config')
+      fetch(getApiUrl("/api/config"))
         .then(r => r.json())
         .then(data => { if (data.agentId) this.setAgentId(data.agentId); })
         .catch(e => console.warn('[VoiceUI] Could not fetch config:', e));
@@ -335,7 +336,7 @@ export default class VoiceUI {
       const gameState = gameAPI.getGameState();
 
       this.setStatus("thinking");
-      const res = await fetch("http://localhost:3001/api/strategy", {
+      const res = await fetch(getApiUrl("/api/strategy"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameState, playerCommand: text }),

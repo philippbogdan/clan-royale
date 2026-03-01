@@ -1,5 +1,6 @@
 // SpeechInput - Always-on voice transcription using Deepgram real-time STT
 // Streams mic audio over WebSocket to Deepgram Nova-2 for low-latency transcription
+import { getApiUrl, getDeepgramWsUrl } from "../settings/api.js";
 
 function debugLog(event, data) {
   if (typeof window === 'undefined') return;
@@ -173,7 +174,7 @@ export default class SpeechInput {
 
     // Connect through our server proxy (handles Deepgram auth server-side)
     // Deepgram auto-detects WebM/Opus containers, no encoding hint needed
-    const wsUrl = 'ws://localhost:3001/deepgram';
+    const wsUrl = getDeepgramWsUrl();
     console.log('%c[SpeechInput] Connecting WS: ' + wsUrl, 'color: cyan');
     const ws = new WebSocket(wsUrl);
     this._ws = ws;
@@ -469,7 +470,7 @@ export default class SpeechInput {
       debugLog('strategy_request', { command: playerCommand, mana: gameState.mana });
       voiceLog('Thinking...', 'system');
 
-      const response = await fetch('http://localhost:3001/api/strategy', {
+      const response = await fetch(getApiUrl("/api/strategy"), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameState, playerCommand, connectorModel: window.connectorModel || null }),

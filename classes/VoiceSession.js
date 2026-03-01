@@ -1,4 +1,5 @@
 import { Conversation } from "@elevenlabs/client";
+import { getApiUrl } from "../settings/api.js";
 
 function debugLog(event, data) {
   if (typeof window === 'undefined') return;
@@ -102,7 +103,7 @@ async function speakText(text) {
   if (window.__speechInput) window.__speechInput.mute();
 
   try {
-    const response = await fetch('http://localhost:3001/api/tts', {
+    const response = await fetch(getApiUrl("/api/tts"), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),

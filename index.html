@@ -278,37 +278,6 @@
         gap: 4px;
       }
 
-      #stt-debug-log {
-        position: fixed;
-        top: 0;
-        right: 0;
-        width: 320px;
-        height: 100vh;
-        padding: 8px;
-        overflow-y: auto;
-        z-index: 999;
-        pointer-events: none;
-        font-family: monospace;
-        font-size: 10px;
-        line-height: 1.4;
-        display: none;
-        flex-direction: column;
-        gap: 1px;
-        background: rgba(0,0,0,0.75);
-      }
-      #stt-debug-log .stt-hdr {
-        color: #DAA520;
-        font-weight: bold;
-        font-size: 11px;
-        padding: 2px 0 4px;
-        border-bottom: 1px solid #333;
-        margin-bottom: 4px;
-      }
-      #stt-debug-log .stt-interim { color: #888; }
-      #stt-debug-log .stt-final { color: #4f8; font-weight: bold; }
-      #stt-debug-log .stt-sent { color: #87CEEB; }
-      #stt-debug-log .stt-skip { color: #c66; }
-      #stt-debug-log .stt-vad { color: #aa8; }
     </style>
 
   </head>
@@ -337,7 +306,6 @@
 
     <div id="game-container"></div>
     <div id="voice-log"></div>
-    <div id="stt-debug-log"></div>
 
     <script>
       // ---- Particle system (cinematic) ----
@@ -448,35 +416,9 @@
         }
       };
 
-      // ---- STT Debug Log ----
+      // ---- STT Debug Log (noop) ----
       window.__sttLog = [];
-      window.addSTTLog = function(type, text, extra) {
-        var log = document.getElementById("stt-debug-log");
-        if (!log) return;
-        var now = new Date();
-        var ts = now.toLocaleTimeString('en-GB', {hour12: false}) + '.' + String(now.getMilliseconds()).padStart(3, '0');
-        var entry = { ts: ts, type: type, text: text, extra: extra || '' };
-        window.__sttLog.push(entry);
-
-        var line = document.createElement("div");
-        var prefix = '';
-        var cls = '';
-        if (type === 'interim')   { prefix = 'INTERIM '; cls = 'stt-interim'; }
-        else if (type === 'final') { prefix = 'FINAL   '; cls = 'stt-final'; }
-        else if (type === 'sent')  { prefix = 'SENT    '; cls = 'stt-sent'; }
-        else if (type === 'skip')  { prefix = 'SKIP    '; cls = 'stt-skip'; }
-        else if (type === 'vad')   { prefix = 'VAD     '; cls = 'stt-vad'; }
-        else                       { prefix = type.toUpperCase().padEnd(8) + ' '; cls = 'stt-vad'; }
-
-        line.className = cls;
-        line.textContent = ts + ' ' + prefix + (text || '') + (extra ? ' [' + extra + ']' : '');
-        log.appendChild(line);
-        log.scrollTop = log.scrollHeight;
-        // Keep max 200 entries
-        while (log.children.length > 200) {
-          log.removeChild(log.firstChild);
-        }
-      };
+      window.addSTTLog = function() {};
 
       // ---- Mic + launch ----
       document.getElementById("enter-btn").addEventListener("click", function() {
@@ -544,12 +486,6 @@
         var landing = document.getElementById("landing");
         landing.classList.add("fade-out");
         document.getElementById("voice-log").style.display = "flex";
-        var sttLog = document.getElementById("stt-debug-log");
-        sttLog.style.display = "flex";
-        var hdr = document.createElement("div");
-        hdr.className = "stt-hdr";
-        hdr.textContent = "STT Debug Log";
-        sttLog.appendChild(hdr);
         window.__stopParticles();
         setTimeout(function() {
           landing.style.display = "none";

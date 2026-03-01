@@ -1,3 +1,20 @@
+import { getApiUrl } from "../settings/api.js";
+import {
+  DEFAULT_DEPLOY_Y,
+  GAME_WIDTH,
+  GRID_CENTER_OFFSET_X,
+  GRID_CENTER_OFFSET_Y,
+  GRID_COLS,
+  GRID_COL_WIDTH,
+  GRID_ORIGIN_Y,
+  GRID_ROW_HEIGHT,
+  GRID_ROWS,
+  LEFT_DEPLOY_X,
+  MID_X,
+  PLAYER_GRID,
+  RIGHT_DEPLOY_X
+} from "../settings/gameConstants.js";
+
 // GameAPI - Singleton wrapper exposing game internals for AI voice control
 
 class GameAPI {
@@ -63,11 +80,7 @@ class GameAPI {
       opponentTowers: this._serializeTowers(scene.opponent),
       gameStatus: this.gameStatus,
       queue: this.getQueueState(),
-      grid: {
-        cols: 10, rows: 6,
-        bridges: [{ col: 1, side: "left" }, { col: 8, side: "right" }],
-        note: "row 0 = river/bridges (aggressive), row 5 = near your towers (defensive). Left bridge col 1-2, right bridge col 7-8."
-      }
+      grid: PLAYER_GRID
     };
   }
 
@@ -107,8 +120,8 @@ class GameAPI {
     }
 
     const troopClass = slot.card.troopClass;
-    const x = posX != null ? posX : (lane === "left" ? 40 : 120);
-    const y = posY != null ? posY : 180;
+    const x = posX != null ? posX : lane === "left" ? LEFT_DEPLOY_X : RIGHT_DEPLOY_X;
+    const y = posY != null ? posY : DEFAULT_DEPLOY_Y;
 
     // Select the slot so drawNextCard works correctly
     hand.setSelectedCardSlot(slot);
@@ -159,7 +172,7 @@ class GameAPI {
       if (action.type === "queue_card") {
         results.push(this.queueCard(action.card, x, y));
       } else if (action.type === "play_card") {
-        const lane = action.lane || (x != null && x < 80 ? "left" : "right");
+        const lane = action.lane || (x != null && x < MID_X ? "left" : "right");
         const result = this.playCardByName(action.card, lane, x, y);
         if (!result.success && result.error === "Not enough mana") {
           results.push(this.queueCard(action.card, x, y));
@@ -279,9 +292,10 @@ class GameAPI {
         const px = GameAPI.gridToPixel(a.col, a.row);
         x = px.x; y = px.y;
       } else {
-        x = a.lane === 'left' ? 40 : 120; y = 180;
+        x = a.lane === "left" ? LEFT_DEPLOY_X : RIGHT_DEPLOY_X;
+        y = DEFAULT_DEPLOY_Y;
       }
-      return { card: a.card, lane: a.lane || (x < 80 ? 'left' : 'right'), x, y };
+      return { card: a.card, lane: a.lane || (x < MID_X ? "left" : "right"), x, y };
     });
     playScene.events.emit('tactical-preview', previewData);
 
@@ -369,11 +383,13 @@ class GameAPI {
       ...d,
       gameResult: result
     }));
+    // Keep decisions available for Playwright to read after game over
+    this._flushedDecisions = entries;
     this._recordedDecisions = [];
 
-    fetch('http://localhost:3001/api/record-gameplay', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch(getApiUrl("/api/record-gameplay"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ entries })
     }).catch(err => {
       console.error('[GameAPI] Failed to flush recorded decisions:', err);
@@ -439,7 +455,7 @@ class GameAPI {
 
   _checkOpponentPush() {
     const scene = this.scene;
-    const midX = 80; // half of 160px canvas width
+    const midX = MID_X;
     let leftCount = 0;
     let rightCount = 0;
 
@@ -521,8 +537,14 @@ class GameAPI {
       if (troop.owner && troop.animKeyPrefix) {
         troops.push({
           name: troop.constructor.NAME || troop.animKeyPrefix,
-          col: Math.max(0, Math.min(9, Math.floor(troop.x / 16))),
-          row: Math.max(0, Math.min(5, Math.floor((troop.y - 115) / 15))),
+          col: Math.max(0, Math.min(GRID_COLS - 1, Math.floor(troop.x / GRID_COL_WIDTH))),
+          row: Math.max(
+            0,
+            Math.min(
+              GRID_ROWS - 1,
+              Math.floor((troop.y - GRID_ORIGIN_Y) / GRID_ROW_HEIGHT)
+            )
+          ),
           health: troop.currentHealth
         });
       }
@@ -534,8 +556,14 @@ class GameAPI {
     const towers = [];
     player.towers.getChildren().forEach(tower => {
       towers.push({
-        col: Math.max(0, Math.min(9, Math.floor(tower.x / 16))),
-        row: Math.max(0, Math.min(5, Math.floor((tower.y - 115) / 15))),
+        col: Math.max(0, Math.min(GRID_COLS - 1, Math.floor(tower.x / GRID_COL_WIDTH))),
+        row: Math.max(
+          0,
+          Math.min(
+            GRID_ROWS - 1,
+            Math.floor((tower.y - GRID_ORIGIN_Y) / GRID_ROW_HEIGHT)
+          )
+        ),
         health: tower.currentHealth
       });
     });
@@ -545,17 +573,31 @@ class GameAPI {
 
 GameAPI.gridToPixel = function(col, row) {
   return {
-    x: Math.max(0, Math.min(159, col * 16 + 8)),
-    y: Math.max(115, Math.min(204, 115 + row * 15 + 7.5))
+    x: Math.max(
+      0,
+      Math.min(
+        GAME_WIDTH - 1,
+        col * GRID_COL_WIDTH + GRID_CENTER_OFFSET_X
+      )
+    ),
+    y: Math.max(
+      GRID_ORIGIN_Y,
+      Math.min(
+        GRID_ORIGIN_Y + GRID_ROWS * GRID_ROW_HEIGHT - 1,
+        GRID_ORIGIN_Y + row * GRID_ROW_HEIGHT + GRID_CENTER_OFFSET_Y
+      )
+    )
   };
 };
 
 GameAPI.pixelToGrid = function(px, py) {
-  const col = Math.round((px - 8) / 16);
-  const row = Math.round((py - 115 - 7.5) / 15);
+  const col = Math.round((px - GRID_CENTER_OFFSET_X) / GRID_COL_WIDTH);
+  const row = Math.round(
+    (py - GRID_ORIGIN_Y - GRID_CENTER_OFFSET_Y) / GRID_ROW_HEIGHT
+  );
   return {
-    col: Math.max(0, Math.min(9, col)),
-    row: Math.max(0, Math.min(5, row))
+    col: Math.max(0, Math.min(GRID_COLS - 1, col)),
+    row: Math.max(0, Math.min(GRID_ROWS - 1, row))
   };
 };
 

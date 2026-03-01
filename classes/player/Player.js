@@ -86,10 +86,10 @@ class Player {
   }
 
   // Returns true if troop is spawned, and false otherwise
-  spawnTroop(x, y, velocityDirection, troopClass) {
+  spawnTroop(x, y, velocityDirection, troopClass, forceSpawn = false) {
     try {
       // First, let's check if this click falls within our boundaries.
-      if (!Phaser.Geom.Rectangle.Contains(this.spawnZone, x, y)) return;
+      if (!forceSpawn && !Phaser.Geom.Rectangle.Contains(this.spawnZone, x, y)) return;
 
       // get a random card type, in the future this will be decided by the player.
       let CardType = cardTypes[parseInt(Math.random() * cardTypes.length, 0)];

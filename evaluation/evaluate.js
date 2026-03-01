@@ -1,11 +1,9 @@
-// evaluate.js — Metrics computation for base vs fine-tuned Mistral comparison
+// evaluate.js — Head-to-head metrics for fine-tuned vs base Qwen comparison
 //
-// Parses JSONL decision logs produced by run-match.js (Playwright), computes
-// grid-aware metrics, and outputs a comparison summary + results.json.
-//
-// Expected JSONL entry format (one per decision):
-//   { timestamp, side, gameState: { mana, hand, myTroops, opponentTroops, myTowers, opponentTowers, grid, ... },
-//     actions: [{ type, card, col, row }], gameResult?: "won"|"lost" }
+// Parses JSONL decision logs from run-match.js (head-to-head matches).
+// Each match has decisions from BOTH sides:
+//   side: "player" = fine-tuned Qwen
+//   side: "opponent" = base Qwen
 //
 // Usage: node evaluation/evaluate.js --logs evaluation/logs/ --output evaluation/results.json
 
@@ -16,16 +14,16 @@ const GRID_COLS = 10;
 const GRID_ROWS = 6;
 
 // ---------------------------------------------------------------------------
-// JSONL parsing — reads all .jsonl files matching a pattern in a directory
+// JSONL parsing — reads all .jsonl match files
 // ---------------------------------------------------------------------------
 
-function readAllLogs(logsDir, prefix) {
+function readAllLogs(logsDir) {
   if (!fs.existsSync(logsDir)) {
     console.error(`Logs directory not found: ${logsDir}`);
     return [];
   }
 
-  const files = fs.readdirSync(logsDir).filter(f => f.endsWith(".jsonl") && f.includes(prefix));
+  const files = fs.readdirSync(logsDir).filter(f => f.endsWith(".jsonl") && f.startsWith("match-"));
   let allEntries = [];
 
   for (const file of files) {
@@ -43,37 +41,23 @@ function readAllLogs(logsDir, prefix) {
 }
 
 // ---------------------------------------------------------------------------
-// Metric: Win rate
+// Metric: Win rate (from summary.json)
 // ---------------------------------------------------------------------------
 
-function computeWinRate(entries) {
-  // Group by match file (entries from the same file share a contiguous timestamp range)
-  // Use gameResult field from flushed entries
-  const matchResults = new Map();
-
-  for (const entry of entries) {
-    // Each entry may have a matchId from run-match, or we group by file
-    const matchKey = entry.matchId || `match-${Math.floor(entry.timestamp / 300000)}`; // 5min buckets as fallback
-    if (!matchResults.has(matchKey)) {
-      matchResults.set(matchKey, { decisions: 0, lastResult: null, side: entry.side });
-    }
-    const m = matchResults.get(matchKey);
-    m.decisions++;
-    if (entry.gameResult) m.lastResult = entry.gameResult;
+function readWinRate(logsDir) {
+  const summaryPath = path.join(logsDir, "summary.json");
+  if (!fs.existsSync(summaryPath)) {
+    return { finetunedWins: 0, baseWins: 0, errors: 0, total: 0, finetunedWinRate: 0, baseWinRate: 0 };
   }
-
-  let wins = 0;
-  let losses = 0;
-  let unknown = 0;
-
-  for (const [, m] of matchResults) {
-    if (m.lastResult === "won") wins++;
-    else if (m.lastResult === "lost") losses++;
-    else unknown++;
-  }
-
-  const total = wins + losses;
-  return { wins, losses, unknown, total: matchResults.size, winRate: total > 0 ? wins / total : 0 };
+  const summary = JSON.parse(fs.readFileSync(summaryPath, "utf-8"));
+  return {
+    finetunedWins: summary.finetunedWins || 0,
+    baseWins: summary.baseWins || 0,
+    errors: summary.errors || 0,
+    total: summary.completed || 0,
+    finetunedWinRate: summary.finetunedWinRate || 0,
+    baseWinRate: summary.baseWinRate || 0
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -140,23 +124,19 @@ function computeStrategicAccuracy(entries) {
     const actions = entry.actions || [];
     if (actions.length === 0) continue;
 
-    // Check if any of our towers is low health (below 300)
     const myTowers = gs.myTowers || [];
     const hasLowTower = myTowers.some(t => t.health > 0 && t.health < 300);
 
     if (hasLowTower) {
       towerLowSituations++;
-      // Defensive = placed in rows 3-5 (near own side)
       const defensiveActions = actions.filter(a => a.row != null && a.row >= 3);
       if (defensiveActions.length > 0) {
         defensiveWhenTowerLow++;
       }
     }
 
-    // Check if mana is full (>= 9)
     if (gs.mana >= 9) {
       manaFullSituations++;
-      // Offensive = placed in rows 0-2 (near enemy side)
       const offensiveActions = actions.filter(a => a.row != null && a.row <= 2);
       if (offensiveActions.length > 0) {
         offensiveWhenManaFull++;
@@ -182,7 +162,6 @@ function computeManaEfficiency(entries) {
   let totalManaAvailable = 0;
   let totalManaSpent = 0;
 
-  // Card catalog for cost lookups
   const CARD_COSTS = {
     ClownGuyTroop: 1, ClownLadyTroop: 1, LilDemonTroop: 2, AlienTroop: 3,
     BattleOtterTroop: 3, ZDogTroop: 3, QuackerTroop: 3,
@@ -210,32 +189,6 @@ function computeManaEfficiency(entries) {
 }
 
 // ---------------------------------------------------------------------------
-// Metric: Average decision latency
-// ---------------------------------------------------------------------------
-
-function computeLatency(entries) {
-  if (entries.length < 2) return { avgMs: 0, medianMs: 0 };
-
-  // Sort by timestamp, compute gaps between consecutive decisions
-  const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp);
-  const gaps = [];
-  for (let i = 1; i < sorted.length; i++) {
-    const gap = sorted[i].timestamp - sorted[i - 1].timestamp;
-    if (gap > 0 && gap < 30000) { // ignore gaps > 30s (likely between matches)
-      gaps.push(gap);
-    }
-  }
-
-  if (gaps.length === 0) return { avgMs: 0, medianMs: 0 };
-
-  gaps.sort((a, b) => a - b);
-  const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
-  const median = gaps[Math.floor(gaps.length / 2)];
-
-  return { avgMs: Math.round(avg), medianMs: median };
-}
-
-// ---------------------------------------------------------------------------
 // Metric: Action validity (col/row bounds, card in hand, mana check)
 // ---------------------------------------------------------------------------
 
@@ -245,7 +198,6 @@ function computeActionValidity(entries) {
   let outOfBounds = 0;
   let cardNotInHand = 0;
   let notEnoughMana = 0;
-  let hasLaneField = 0;
 
   const CARD_COSTS = {
     ClownGuyTroop: 1, ClownLadyTroop: 1, LilDemonTroop: 2, AlienTroop: 3,
@@ -263,14 +215,12 @@ function computeActionValidity(entries) {
       totalActions++;
       let valid = true;
 
-      // Check col/row bounds
       if (action.col == null || action.row == null ||
           action.col < 0 || action.col > 9 || action.row < 0 || action.row > 5) {
         outOfBounds++;
         valid = false;
       }
 
-      // Check if card is in hand
       const hand = gs.hand || [];
       const inHand = hand.some(c => c.name && c.name.toLowerCase() === (action.card || "").toLowerCase());
       if (!inHand) {
@@ -278,18 +228,12 @@ function computeActionValidity(entries) {
         valid = false;
       }
 
-      // Check mana
       const cost = CARD_COSTS[action.card] || 0;
       if (cost > manaLeft) {
         notEnoughMana++;
         valid = false;
       } else {
         manaLeft -= cost;
-      }
-
-      // Check for legacy lane field
-      if (action.lane !== undefined) {
-        hasLaneField++;
       }
 
       if (valid) validActions++;
@@ -302,24 +246,21 @@ function computeActionValidity(entries) {
     validityRate: totalActions > 0 ? validActions / totalActions : 0,
     outOfBounds,
     cardNotInHand,
-    notEnoughMana,
-    hasLaneField
+    notEnoughMana
   };
 }
 
 // ---------------------------------------------------------------------------
-// Aggregate all metrics
+// Aggregate all metrics for one side
 // ---------------------------------------------------------------------------
 
 function computeAllMetrics(entries) {
   return {
     count: entries.length,
-    winRate: computeWinRate(entries),
     placementVariety: computePlacementVariety(entries),
     placementHeatmap: computePlacementHeatmap(entries),
     strategicAccuracy: computeStrategicAccuracy(entries),
     manaEfficiency: computeManaEfficiency(entries),
-    latency: computeLatency(entries),
     actionValidity: computeActionValidity(entries)
   };
 }
@@ -331,34 +272,39 @@ function computeAllMetrics(entries) {
 function fmtPct(v) { return (v * 100).toFixed(1) + "%"; }
 function fmtDelta(v) { const s = (v * 100).toFixed(1); return (v >= 0 ? "+" : "") + s + "%"; }
 function fmtNum(v) { return String(v); }
-function fmtMs(v) { return v + "ms"; }
 
-function printComparisonTable(base, ft) {
+function printComparisonTable(winRate, ft, base) {
   const W = 72;
   console.log("\n" + "=".repeat(W));
-  console.log("  EVALUATION: Base Mistral vs Fine-tuned Mistral");
+  console.log("  HEAD-TO-HEAD: Fine-tuned Qwen vs Base Qwen");
+  console.log("  (Both sides orchestrated by Grok 4.1 Fast)");
   console.log("=".repeat(W));
   console.log();
 
-  const header = "Metric".padEnd(28) + "Base".padEnd(14) + "Fine-tuned".padEnd(14) + "Delta";
+  // Win rate section
+  console.log(`  WIN RATE (${winRate.total} matches)`);
+  console.log(`  Fine-tuned wins: ${winRate.finetunedWins} (${fmtPct(winRate.finetunedWinRate)})`);
+  console.log(`  Base wins:       ${winRate.baseWins} (${fmtPct(winRate.baseWinRate)})`);
+  console.log(`  Errors/Timeouts: ${winRate.errors}`);
+  console.log();
+
+  // Behavioral metrics
+  const header = "Metric".padEnd(28) + "Fine-tuned".padEnd(14) + "Base".padEnd(14) + "Delta";
   console.log(header);
   console.log("-".repeat(W));
 
   const rows = [
-    ["Win Rate", fmtPct(base.winRate.winRate), fmtPct(ft.winRate.winRate), fmtDelta(ft.winRate.winRate - base.winRate.winRate)],
-    ["Placement Variety", base.placementVariety.variety, ft.placementVariety.variety, fmtDelta((ft.placementVariety.uniqueCells - base.placementVariety.uniqueCells) / 60)],
-    ["Action Validity", fmtPct(base.actionValidity.validityRate), fmtPct(ft.actionValidity.validityRate), fmtDelta(ft.actionValidity.validityRate - base.actionValidity.validityRate)],
-    ["Mana Efficiency", fmtPct(base.manaEfficiency.efficiency), fmtPct(ft.manaEfficiency.efficiency), fmtDelta(ft.manaEfficiency.efficiency - base.manaEfficiency.efficiency)],
-    ["Defensive When Low HP", fmtPct(base.strategicAccuracy.defensiveRate), fmtPct(ft.strategicAccuracy.defensiveRate), fmtDelta(ft.strategicAccuracy.defensiveRate - base.strategicAccuracy.defensiveRate)],
-    ["Offensive When Full Mana", fmtPct(base.strategicAccuracy.offensiveRate), fmtPct(ft.strategicAccuracy.offensiveRate), fmtDelta(ft.strategicAccuracy.offensiveRate - base.strategicAccuracy.offensiveRate)],
-    ["Avg Decision Gap", fmtMs(base.latency.avgMs), fmtMs(ft.latency.avgMs), fmtMs(ft.latency.avgMs - base.latency.avgMs)],
-    ["Legacy Lane Fields", fmtNum(base.actionValidity.hasLaneField), fmtNum(ft.actionValidity.hasLaneField), ""],
-    ["Total Decisions", fmtNum(base.count), fmtNum(ft.count), ""],
-    ["Total Actions", fmtNum(base.actionValidity.totalActions), fmtNum(ft.actionValidity.totalActions), ""],
+    ["Placement Variety", ft.placementVariety.variety, base.placementVariety.variety, fmtDelta((ft.placementVariety.uniqueCells - base.placementVariety.uniqueCells) / 60)],
+    ["Action Validity", fmtPct(ft.actionValidity.validityRate), fmtPct(base.actionValidity.validityRate), fmtDelta(ft.actionValidity.validityRate - base.actionValidity.validityRate)],
+    ["Mana Efficiency", fmtPct(ft.manaEfficiency.efficiency), fmtPct(base.manaEfficiency.efficiency), fmtDelta(ft.manaEfficiency.efficiency - base.manaEfficiency.efficiency)],
+    ["Defensive When Low HP", fmtPct(ft.strategicAccuracy.defensiveRate), fmtPct(base.strategicAccuracy.defensiveRate), fmtDelta(ft.strategicAccuracy.defensiveRate - base.strategicAccuracy.defensiveRate)],
+    ["Offensive When Full Mana", fmtPct(ft.strategicAccuracy.offensiveRate), fmtPct(base.strategicAccuracy.offensiveRate), fmtDelta(ft.strategicAccuracy.offensiveRate - base.strategicAccuracy.offensiveRate)],
+    ["Total Decisions", fmtNum(ft.count), fmtNum(base.count), ""],
+    ["Total Actions", fmtNum(ft.actionValidity.totalActions), fmtNum(base.actionValidity.totalActions), ""],
   ];
 
-  for (const [label, bv, fv, dv] of rows) {
-    console.log(label.padEnd(28) + bv.padEnd(14) + fv.padEnd(14) + dv);
+  for (const [label, fv, bv, dv] of rows) {
+    console.log(label.padEnd(28) + fv.padEnd(14) + bv.padEnd(14) + dv);
   }
   console.log();
 }
@@ -375,23 +321,6 @@ function printHeatmap(label, heatmap) {
   console.log();
 }
 
-function printSingleModelMetrics(label, m) {
-  console.log(`--- ${label} Model Metrics ---`);
-  console.log(`  Decisions:            ${m.count}`);
-  console.log(`  Win Rate:             ${fmtPct(m.winRate.winRate)} (${m.winRate.wins}W / ${m.winRate.losses}L / ${m.winRate.unknown} unknown)`);
-  console.log(`  Placement Variety:    ${m.placementVariety.variety} unique cells`);
-  console.log(`  Action Validity:      ${fmtPct(m.actionValidity.validityRate)} (${m.actionValidity.validActions}/${m.actionValidity.totalActions})`);
-  console.log(`  Mana Efficiency:      ${fmtPct(m.manaEfficiency.efficiency)}`);
-  console.log(`  Defensive (low HP):   ${fmtPct(m.strategicAccuracy.defensiveRate)} (${m.strategicAccuracy.defensiveWhenTowerLow}/${m.strategicAccuracy.towerLowSituations})`);
-  console.log(`  Offensive (full mana):${fmtPct(m.strategicAccuracy.offensiveRate)} (${m.strategicAccuracy.offensiveWhenManaFull}/${m.strategicAccuracy.manaFullSituations})`);
-  console.log(`  Avg Decision Gap:     ${fmtMs(m.latency.avgMs)}`);
-  console.log(`  Out-of-Bounds:        ${m.actionValidity.outOfBounds}`);
-  console.log(`  Card Not In Hand:     ${m.actionValidity.cardNotInHand}`);
-  console.log(`  Not Enough Mana:      ${m.actionValidity.notEnoughMana}`);
-  console.log(`  Legacy Lane Fields:   ${m.actionValidity.hasLaneField}`);
-  console.log();
-}
-
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -401,59 +330,56 @@ function main() {
   const logsDir = getArg(args, "--logs") || path.join(__dirname, "logs");
   const outputFile = getArg(args, "--output") || path.join(__dirname, "results.json");
 
-  // Read log files — base and finetuned
-  const baseEntries = readAllLogs(logsDir, "base");
-  const ftEntries = readAllLogs(logsDir, "finetuned");
+  // Read all entries and split by side
+  const allEntries = readAllLogs(logsDir);
+  const ftEntries = allEntries.filter(e => e.side === "player");   // fine-tuned
+  const baseEntries = allEntries.filter(e => e.side === "opponent"); // base
 
-  console.log(`Loaded ${baseEntries.length} base entries from ${logsDir}`);
-  console.log(`Loaded ${ftEntries.length} fine-tuned entries from ${logsDir}`);
+  console.log(`Loaded ${allEntries.length} total entries from ${logsDir}`);
+  console.log(`  Fine-tuned (player) decisions: ${ftEntries.length}`);
+  console.log(`  Base (opponent) decisions:      ${baseEntries.length}`);
 
-  if (baseEntries.length === 0 && ftEntries.length === 0) {
+  if (allEntries.length === 0) {
     console.error("\nNo log files found. Run matches first:");
-    console.error("  node evaluation/run-match.js --matches 100 --parallel 10 --output evaluation/logs/");
+    console.error("  node evaluation/run-match.js --matches 100 --parallel 5 --output evaluation/logs/");
     process.exit(1);
   }
 
-  // Compute metrics
-  const baseMetrics = baseEntries.length > 0 ? computeAllMetrics(baseEntries) : null;
+  // Win rate from summary.json
+  const winRate = readWinRate(logsDir);
+
+  // Compute per-side behavioral metrics
   const ftMetrics = ftEntries.length > 0 ? computeAllMetrics(ftEntries) : null;
+  const baseMetrics = baseEntries.length > 0 ? computeAllMetrics(baseEntries) : null;
 
   // Print results
-  if (baseMetrics && ftMetrics) {
-    printComparisonTable(baseMetrics, ftMetrics);
-    printHeatmap("Base", baseMetrics.placementHeatmap);
-    printHeatmap("Fine-tuned", ftMetrics.placementHeatmap);
-  } else if (baseMetrics) {
-    printSingleModelMetrics("Base", baseMetrics);
-    printHeatmap("Base", baseMetrics.placementHeatmap);
-  } else if (ftMetrics) {
-    printSingleModelMetrics("Fine-tuned", ftMetrics);
-    printHeatmap("Fine-tuned", ftMetrics.placementHeatmap);
+  if (ftMetrics && baseMetrics) {
+    printComparisonTable(winRate, ftMetrics, baseMetrics);
+    printHeatmap("Fine-tuned (player)", ftMetrics.placementHeatmap);
+    printHeatmap("Base (opponent)", baseMetrics.placementHeatmap);
   }
 
   // Write results.json
   const output = {
     timestamp: new Date().toISOString(),
+    mode: "head-to-head",
     logsDir,
-    base: baseMetrics ? {
-      count: baseMetrics.count,
-      winRate: baseMetrics.winRate,
-      placementVariety: baseMetrics.placementVariety,
-      strategicAccuracy: baseMetrics.strategicAccuracy,
-      manaEfficiency: baseMetrics.manaEfficiency,
-      latency: baseMetrics.latency,
-      actionValidity: baseMetrics.actionValidity,
-      heatmap: baseMetrics.placementHeatmap.grid
-    } : null,
+    winRate,
     finetuned: ftMetrics ? {
       count: ftMetrics.count,
-      winRate: ftMetrics.winRate,
       placementVariety: ftMetrics.placementVariety,
       strategicAccuracy: ftMetrics.strategicAccuracy,
       manaEfficiency: ftMetrics.manaEfficiency,
-      latency: ftMetrics.latency,
       actionValidity: ftMetrics.actionValidity,
       heatmap: ftMetrics.placementHeatmap.grid
+    } : null,
+    base: baseMetrics ? {
+      count: baseMetrics.count,
+      placementVariety: baseMetrics.placementVariety,
+      strategicAccuracy: baseMetrics.strategicAccuracy,
+      manaEfficiency: baseMetrics.manaEfficiency,
+      actionValidity: baseMetrics.actionValidity,
+      heatmap: baseMetrics.placementHeatmap.grid
     } : null
   };
 

@@ -1,27 +1,31 @@
 import Phaser from "phaser";
-import LoadingScene from "../scenes/LoadingScene.js";
-import TitleScene from "../scenes/TitleScene.js";
-import PlayScene from "../scenes/PlayScene.js";
-import UIScene from "../scenes/UIScene.js";
-import CreditsScene from "../scenes/CreditsScene.js";
-import WinScene from "../scenes/WinScene.js";
-import LoseScene from "../scenes/LoseScene.js";
 
-export var config = {
+import CreditsScene from "../scenes/CreditsScene.js";
+import LoadingScene from "../scenes/LoadingScene.js";
+import LoseScene from "../scenes/LoseScene.js";
+import PlayScene from "../scenes/PlayScene.js";
+import TitleScene from "../scenes/TitleScene.js";
+import UIScene from "../scenes/UIScene.js";
+import WinScene from "../scenes/WinScene.js";
+import { GAME_HEIGHT, GAME_WIDTH } from "./gameConstants.js";
+
+const SCENES = [
+  LoadingScene,
+  TitleScene,
+  PlayScene,
+  UIScene,
+  CreditsScene,
+  WinScene,
+  LoseScene
+];
+
+export const config = {
   type: Phaser.AUTO,
   parent: "game-container",
   pixelArt: true,
   zoom: 3,
   backgroundColor: "#000000",
-  scene: [
-    LoadingScene,
-    TitleScene,
-    PlayScene,
-    UIScene,
-    CreditsScene,
-    WinScene,
-    LoseScene
-  ],
+  scene: SCENES,
   physics: {
     default: "arcade",
     arcade: {
@@ -35,11 +39,7 @@ export var config = {
   scale: {
     parent: "game-container",
     mode: Phaser.Scale.FIT,
-    width: 160,
-    height: 265
-    /*
-    width: 140,
-    height: 240
-    */
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT
   }
 };

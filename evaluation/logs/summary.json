@@ -1,0 +1,714 @@
+{
+  "timestamp": "2026-03-01T12:20:34.943Z",
+  "mode": "head-to-head",
+  "description": "Fine-tuned Qwen (player) vs Base Qwen (opponent), both orchestrated by Grok 4.1 Fast",
+  "totalMatches": 100,
+  "completed": 100,
+  "finetunedWins": 59,
+  "baseWins": 41,
+  "errors": 0,
+  "finetunedWinRate": 0.59,
+  "baseWinRate": 0.41,
+  "allMatches": [
+    {
+      "matchId": "match-000",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 17,
+      "elapsedMs": 64414
+    },
+    {
+      "matchId": "match-001",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 54292
+    },
+    {
+      "matchId": "match-002",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 14,
+      "elapsedMs": 64378
+    },
+    {
+      "matchId": "match-003",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 27,
+      "elapsedMs": 112449
+    },
+    {
+      "matchId": "match-004",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 19,
+      "elapsedMs": 76388
+    },
+    {
+      "matchId": "match-005",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 14,
+      "elapsedMs": 62374
+    },
+    {
+      "matchId": "match-006",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 16,
+      "elapsedMs": 74380
+    },
+    {
+      "matchId": "match-007",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 17,
+      "elapsedMs": 72377
+    },
+    {
+      "matchId": "match-008",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 23,
+      "elapsedMs": 94414
+    },
+    {
+      "matchId": "match-009",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 16,
+      "elapsedMs": 68375
+    },
+    {
+      "matchId": "match-010",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 19,
+      "elapsedMs": 79433
+    },
+    {
+      "matchId": "match-011",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 11,
+      "elapsedMs": 49052
+    },
+    {
+      "matchId": "match-012",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 24,
+      "elapsedMs": 87450
+    },
+    {
+      "matchId": "match-013",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 17,
+      "elapsedMs": 75430
+    },
+    {
+      "matchId": "match-014",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 38,
+      "elapsedMs": 145544
+    },
+    {
+      "matchId": "match-015",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 46,
+      "elapsedMs": 189624
+    },
+    {
+      "matchId": "match-016",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 16,
+      "elapsedMs": 69235
+    },
+    {
+      "matchId": "match-017",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 22,
+      "elapsedMs": 83447
+    },
+    {
+      "matchId": "match-018",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 16,
+      "elapsedMs": 69219
+    },
+    {
+      "matchId": "match-019",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 19,
+      "elapsedMs": 85450
+    },
+    {
+      "matchId": "match-020",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 15,
+      "elapsedMs": 68651
+    },
+    {
+      "matchId": "match-021",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 10,
+      "elapsedMs": 50574
+    },
+    {
+      "matchId": "match-022",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 17,
+      "elapsedMs": 68661
+    },
+    {
+      "matchId": "match-023",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 20,
+      "elapsedMs": 84678
+    },
+    {
+      "matchId": "match-024",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 22,
+      "elapsedMs": 92680
+    },
+    {
+      "matchId": "match-025",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 30,
+      "elapsedMs": 114724
+    },
+    {
+      "matchId": "match-026",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 36,
+      "elapsedMs": 150794
+    },
+    {
+      "matchId": "match-027",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 14,
+      "elapsedMs": 66644
+    },
+    {
+      "matchId": "match-028",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 13,
+      "elapsedMs": 56609
+    },
+    {
+      "matchId": "match-029",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 11,
+      "elapsedMs": 48501
+    },
+    {
+      "matchId": "match-030",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 17,
+      "elapsedMs": 69891
+    },
+    {
+      "matchId": "match-031",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 33,
+      "elapsedMs": 136062
+    },
+    {
+      "matchId": "match-032",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 51827
+    },
+    {
+      "matchId": "match-033",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 49812
+    },
+    {
+      "matchId": "match-034",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 44,
+      "elapsedMs": 172101
+    },
+    {
+      "matchId": "match-035",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 27,
+      "elapsedMs": 107975
+    },
+    {
+      "matchId": "match-036",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 13,
+      "elapsedMs": 51861
+    },
+    {
+      "matchId": "match-037",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 20,
+      "elapsedMs": 79924
+    },
+    {
+      "matchId": "match-038",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 19,
+      "elapsedMs": 81923
+    },
+    {
+      "matchId": "match-039",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 35,
+      "elapsedMs": 136037
+    },
+    {
+      "matchId": "match-040",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 16,
+      "elapsedMs": 64852
+    },
+    {
+      "matchId": "match-041",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 31,
+      "elapsedMs": 124954
+    },
+    {
+      "matchId": "match-042",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 50812
+    },
+    {
+      "matchId": "match-043",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 11,
+      "elapsedMs": 44783
+    },
+    {
+      "matchId": "match-044",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 17,
+      "elapsedMs": 74882
+    },
+    {
+      "matchId": "match-045",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 22,
+      "elapsedMs": 88901
+    },
+    {
+      "matchId": "match-046",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 21,
+      "elapsedMs": 86895
+    },
+    {
+      "matchId": "match-047",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 19,
+      "elapsedMs": 80878
+    },
+    {
+      "matchId": "match-048",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 36,
+      "elapsedMs": 144991
+    },
+    {
+      "matchId": "match-049",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 17,
+      "elapsedMs": 62849
+    },
+    {
+      "matchId": "match-050",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 27,
+      "elapsedMs": 108619
+    },
+    {
+      "matchId": "match-051",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 22,
+      "elapsedMs": 86566
+    },
+    {
+      "matchId": "match-052",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 27,
+      "elapsedMs": 126639
+    },
+    {
+      "matchId": "match-053",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 22,
+      "elapsedMs": 92572
+    },
+    {
+      "matchId": "match-054",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 50499
+    },
+    {
+      "matchId": "match-055",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 19,
+      "elapsedMs": 66520
+    },
+    {
+      "matchId": "match-056",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 50483
+    },
+    {
+      "matchId": "match-057",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 9,
+      "elapsedMs": 46455
+    },
+    {
+      "matchId": "match-058",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 29,
+      "elapsedMs": 106602
+    },
+    {
+      "matchId": "match-059",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 38,
+      "elapsedMs": 142684
+    },
+    {
+      "matchId": "match-060",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 19,
+      "elapsedMs": 78537
+    },
+    {
+      "matchId": "match-061",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 62508
+    },
+    {
+      "matchId": "match-062",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 14,
+      "elapsedMs": 72522
+    },
+    {
+      "matchId": "match-063",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 39,
+      "elapsedMs": 150676
+    },
+    {
+      "matchId": "match-064",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 21,
+      "elapsedMs": 92564
+    },
+    {
+      "matchId": "match-065",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 63,
+      "elapsedMs": 248907
+    },
+    {
+      "matchId": "match-066",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 14,
+      "elapsedMs": 52447
+    },
+    {
+      "matchId": "match-067",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 17,
+      "elapsedMs": 66529
+    },
+    {
+      "matchId": "match-068",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 17,
+      "elapsedMs": 68523
+    },
+    {
+      "matchId": "match-069",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 30,
+      "elapsedMs": 122615
+    },
+    {
+      "matchId": "match-070",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 20,
+      "elapsedMs": 92439
+    },
+    {
+      "matchId": "match-071",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 26,
+      "elapsedMs": 110221
+    },
+    {
+      "matchId": "match-072",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 30,
+      "elapsedMs": 116235
+    },
+    {
+      "matchId": "match-073",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 60380
+    },
+    {
+      "matchId": "match-074",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 21,
+      "elapsedMs": 96413
+    },
+    {
+      "matchId": "match-075",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 16,
+      "elapsedMs": 72374
+    },
+    {
+      "matchId": "match-076",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 20,
+      "elapsedMs": 86396
+    },
+    {
+      "matchId": "match-077",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 56343
+    },
+    {
+      "matchId": "match-078",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 24,
+      "elapsedMs": 102431
+    },
+    {
+      "matchId": "match-079",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 38,
+      "elapsedMs": 156326
+    },
+    {
+      "matchId": "match-080",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 17,
+      "elapsedMs": 68810
+    },
+    {
+      "matchId": "match-081",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 18,
+      "elapsedMs": 72823
+    },
+    {
+      "matchId": "match-082",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 15,
+      "elapsedMs": 60801
+    },
+    {
+      "matchId": "match-083",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 62799
+    },
+    {
+      "matchId": "match-084",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 52804
+    },
+    {
+      "matchId": "match-085",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 60,
+      "elapsedMs": 233217
+    },
+    {
+      "matchId": "match-086",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 22,
+      "elapsedMs": 82843
+    },
+    {
+      "matchId": "match-087",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 14,
+      "elapsedMs": 60790
+    },
+    {
+      "matchId": "match-088",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 11,
+      "elapsedMs": 42706
+    },
+    {
+      "matchId": "match-089",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 13,
+      "elapsedMs": 52792
+    },
+    {
+      "matchId": "match-090",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 27,
+      "elapsedMs": 122686
+    },
+    {
+      "matchId": "match-091",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 16,
+      "elapsedMs": 78562
+    },
+    {
+      "matchId": "match-092",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 40,
+      "elapsedMs": 150687
+    },
+    {
+      "matchId": "match-093",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 19,
+      "elapsedMs": 86582
+    },
+    {
+      "matchId": "match-094",
+      "finetunedWon": false,
+      "gameStatus": "lost",
+      "decisions": 29,
+      "elapsedMs": 114627
+    },
+    {
+      "matchId": "match-095",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 28,
+      "elapsedMs": 118642
+    },
+    {
+      "matchId": "match-096",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 32,
+      "elapsedMs": 132383
+    },
+    {
+      "matchId": "match-097",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 11,
+      "elapsedMs": 48500
+    },
+    {
+      "matchId": "match-098",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 11,
+      "elapsedMs": 46496
+    },
+    {
+      "matchId": "match-099",
+      "finetunedWon": true,
+      "gameStatus": "won",
+      "decisions": 12,
+      "elapsedMs": 52515
+    }
+  ]
+}

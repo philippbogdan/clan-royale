@@ -689,18 +689,20 @@ class UIScene extends Scene {
   // ── SPECTATOR CHAT PANELS ──
 
   _createSpectatorPanels() {
-    this._spectatorContainer = document.createElement('div');
-    this._spectatorContainer.style.cssText = 'position:fixed;pointer-events:none;overflow:hidden;z-index:15;';
-    document.body.appendChild(this._spectatorContainer);
-
     this._leftPanel = this._createPanel('FINE-TUNED', '#DAA520');
     this._rightPanel = this._createPanel('BASE', '#9CA3AF');
 
     this._leftMessages = [];
     this._rightMessages = [];
 
-    this._spectatorContainer.appendChild(this._leftPanel.el);
-    this._spectatorContainer.appendChild(this._rightPanel.el);
+    // Panels live directly on the body, positioned in side gutters
+    this._leftPanel.el.style.position = 'fixed';
+    this._leftPanel.el.style.zIndex = '15';
+    this._rightPanel.el.style.position = 'fixed';
+    this._rightPanel.el.style.zIndex = '15';
+
+    document.body.appendChild(this._leftPanel.el);
+    document.body.appendChild(this._rightPanel.el);
 
     this._syncSpectatorPanels();
 
@@ -710,55 +712,55 @@ class UIScene extends Scene {
 
   _createPanel(title, titleColor) {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;display:flex;flex-direction:column;overflow:hidden;border-radius:2px;border:1px solid rgba(196,162,101,0.3);';
-    el.style.background = 'rgba(0,0,0,0.6)';
+    el.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;border:none;box-sizing:border-box;';
+    el.style.background = 'transparent';
 
     const header = document.createElement('div');
-    header.style.cssText = 'padding:2px 4px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;letter-spacing:1px;border-bottom:1px solid rgba(196,162,101,0.2);flex-shrink:0;';
+    header.style.cssText = 'padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;letter-spacing:1.5px;flex-shrink:0;text-transform:uppercase;';
     header.style.color = titleColor;
     header.textContent = title;
     el.appendChild(header);
 
     const manaText = document.createElement('div');
-    manaText.style.cssText = 'padding:1px 4px;font-family:Arial,Helvetica,sans-serif;color:#C47832;flex-shrink:0;';
+    manaText.style.cssText = 'padding:4px 10px;font-family:Arial,Helvetica,sans-serif;color:#C47832;flex-shrink:0;';
     el.appendChild(manaText);
 
     const msgArea = document.createElement('div');
-    msgArea.style.cssText = 'flex:1;overflow:hidden;padding:2px 4px;display:flex;flex-direction:column;justify-content:flex-end;';
+    msgArea.style.cssText = 'flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;';
     el.appendChild(msgArea);
 
     return { el, header, manaText, msgArea };
   }
 
   _syncSpectatorPanels() {
-    if (!this._spectatorContainer || !this.game || !this.game.canvas) return;
+    if (!this.game || !this.game.canvas) return;
     const r = this.game.canvas.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-    this._spectatorContainer.style.left = r.left + 'px';
-    this._spectatorContainer.style.top = r.top + 'px';
-    this._spectatorContainer.style.width = r.width + 'px';
-    this._spectatorContainer.style.height = r.height + 'px';
+    const gap = 12; // gap between canvas edge and panel
+    const topY = r.top + 10;
+    const panelH = r.height - 20;
+    const fontSize = Math.max(11, Math.min(14, vw * 0.012));
+    const headerSize = Math.max(13, Math.min(16, vw * 0.014));
+    const manaSize = Math.max(10, Math.min(13, vw * 0.011));
 
-    const panelW = r.width * 0.44;
-    const panelH = r.height * 0.35;
-    const topY = r.height * 0.03;
-    const fontSize = Math.max(8, r.height * 0.022);
-    const headerSize = Math.max(9, r.height * 0.026);
-    const manaSize = Math.max(7, r.height * 0.02);
-
-    // Left panel
-    this._leftPanel.el.style.left = r.width * 0.02 + 'px';
+    // Left panel: from left edge of viewport to left edge of canvas
+    const leftW = Math.max(180, r.left - gap * 2);
+    this._leftPanel.el.style.left = gap + 'px';
+    this._leftPanel.el.style.right = 'auto';
     this._leftPanel.el.style.top = topY + 'px';
-    this._leftPanel.el.style.width = panelW + 'px';
+    this._leftPanel.el.style.width = leftW + 'px';
     this._leftPanel.el.style.height = panelH + 'px';
     this._leftPanel.header.style.fontSize = headerSize + 'px';
     this._leftPanel.manaText.style.fontSize = manaSize + 'px';
 
-    // Right panel
-    this._rightPanel.el.style.right = r.width * 0.02 + 'px';
+    // Right panel: from right edge of canvas to right edge of viewport
+    const rightW = Math.max(180, vw - r.right - gap * 2);
     this._rightPanel.el.style.left = 'auto';
+    this._rightPanel.el.style.right = gap + 'px';
     this._rightPanel.el.style.top = topY + 'px';
-    this._rightPanel.el.style.width = panelW + 'px';
+    this._rightPanel.el.style.width = rightW + 'px';
     this._rightPanel.el.style.height = panelH + 'px';
     this._rightPanel.header.style.fontSize = headerSize + 'px';
     this._rightPanel.manaText.style.fontSize = manaSize + 'px';
@@ -777,12 +779,12 @@ class UIScene extends Scene {
     const messages = side === 'left' ? this._leftMessages : this._rightMessages;
     if (!panel || !text) return;
 
-    const r = this.game.canvas ? this.game.canvas.getBoundingClientRect() : null;
-    const fontSize = r ? Math.max(8, r.height * 0.022) : 10;
+    const vw = window.innerWidth;
+    const fontSize = Math.max(11, Math.min(14, vw * 0.012));
 
     const msg = document.createElement('div');
     msg.className = 'spec-msg';
-    msg.style.cssText = 'color:#F5E6C8;font-family:Arial,Helvetica,sans-serif;padding:2px 0;opacity:0;transition:opacity 0.3s ease;word-wrap:break-word;white-space:pre-wrap;line-height:1.3;border-bottom:1px solid rgba(196,162,101,0.1);margin-bottom:1px;';
+    msg.style.cssText = 'color:#F5E6C8;font-family:Arial,Helvetica,sans-serif;padding:6px 8px;opacity:0;transition:opacity 0.3s ease;word-wrap:break-word;white-space:pre-wrap;line-height:1.4;border-radius:3px;background:rgba(43,26,14,0.5);';
     msg.style.fontSize = fontSize + 'px';
     msg.textContent = text;
 
@@ -792,8 +794,11 @@ class UIScene extends Scene {
     // Trigger fade-in on next frame
     requestAnimationFrame(() => { msg.style.opacity = '1'; });
 
-    // Remove oldest if >4 messages
-    while (messages.length > 4) {
+    // Scroll to bottom
+    panel.msgArea.scrollTop = panel.msgArea.scrollHeight;
+
+    // Remove oldest if >8 messages
+    while (messages.length > 8) {
       const old = messages.shift();
       old.style.opacity = '0';
       setTimeout(() => { if (old.parentNode) old.parentNode.removeChild(old); }, 300);

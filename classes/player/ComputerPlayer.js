@@ -66,7 +66,7 @@ export default class ComputerPlayer extends Player {
     if (idx === -1) return false;
     const troopClass = this.virtualHand[idx];
     if (this.manaBank.getManaAmount() < troopClass.COST) return false;
-    this.spawnTroop(x, y, this.troopVelocityDirection, troopClass);
+    this.spawnTroop(x, y, this.troopVelocityDirection, troopClass, true);
     this.virtualHand.splice(idx, 1);
     this.virtualHand.push(this._drawNextVirtualCard());
     return true;
