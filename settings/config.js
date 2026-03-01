@@ -11,7 +11,7 @@ export var config = {
   type: Phaser.AUTO,
   parent: "game-container",
   pixelArt: true,
-  zoom: 1,
+  zoom: 3,
   backgroundColor: "#000000",
   scene: [
     LoadingScene,

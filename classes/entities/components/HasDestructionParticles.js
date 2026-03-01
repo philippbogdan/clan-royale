@@ -107,6 +107,19 @@ HasDestructionParticles.methods = {
   // Called when an entity with this component is destroyed
   _destroy() {
     HasDestructionParticles.particles.emitParticleAt(this.x, this.y, 30);
+
+    // Death animation: white flash + shrink
+    if (!this.isDestroyed) {
+      this.setTintFill(0xffffff);
+      this.scene.tweens.add({
+        targets: this,
+        scaleX: 0,
+        scaleY: 0,
+        alpha: 0,
+        duration: 200,
+        ease: 'Quad.easeIn'
+      });
+    }
   }
 };
 

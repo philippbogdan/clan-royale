@@ -6,7 +6,7 @@ export default class LoadingScene extends Scene {
   }
 
   nextScene() {
-    this.scene.start("TitleScene");
+    this.scene.start("PlayScene");
   }
 
   preload() {
@@ -124,6 +124,16 @@ export default class LoadingScene extends Scene {
       frameWidth: 16,
       frameHeight: 16
     });
+
+    // Mascot images for speaking animation
+    this.load.image("mascot-closed", "assets/mascot-nobg.png");
+    this.load.image("mascot-open", "assets/mascot-open-nobg.png");
+
+    // Audio assets
+    this.load.audio('music', 'assets/music.mp3');
+    this.load.audio('sfx-hit', 'assets/sfx-hit.mp3');
+    this.load.audio('sfx-spawn', 'assets/sfx-spawn.mp3');
+    this.load.audio('sfx-destroy', 'assets/sfx-destroy.mp3');
 
     // Create waypoint image with texture generation
     let circle = this.add.graphics();

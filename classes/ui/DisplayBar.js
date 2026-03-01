@@ -36,9 +36,13 @@ export default class DisplayBar extends Phaser.GameObjects.Container {
       .setOrigin(0.5);
     this.add(this.foregroundBar);
 
-    // value text display
-    this.text = scene.add.text(0, 0, value).setOrigin(0.5);
-    this.add(this.text);
+    // value text via HTML overlay
+    const overlay = window.__textOverlay;
+    if (overlay) {
+      this._textOverlayId = overlay.add(x, y, String(value), {
+        fontSize: 6, color: '#ffffff', stroke: '#000000', fontWeight: 'bold'
+      });
+    }
 
     this.setDepth(99999);
   }
@@ -50,14 +54,20 @@ export default class DisplayBar extends Phaser.GameObjects.Container {
 
   updateDisplay() {
     const fullBarWidth = this.backgroundBar.width;
-    const fullBarHeight = this.backgroundBar.width;
+    const fullBarHeight = this.backgroundBar.height;
     const foregroundRatio = parseFloat(this.value) / this.denominator;
     const foregroundWidth = fullBarWidth * foregroundRatio;
     this.foregroundBar.setSize(foregroundWidth, fullBarHeight);
-    this.text.setText(Math.floor(this.value));
+    if (window.__textOverlay && this._textOverlayId != null) {
+      window.__textOverlay.setText(this._textOverlayId, String(Math.floor(this.value)));
+    }
   }
 
   destroy() {
+    if (window.__textOverlay && this._textOverlayId != null) {
+      window.__textOverlay.remove(this._textOverlayId);
+      this._textOverlayId = null;
+    }
     super.destroy();
   }
 }

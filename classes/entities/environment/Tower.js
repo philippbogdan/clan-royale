@@ -57,7 +57,9 @@ export default class Tower extends EnvironmentObject {
     // Delay the event so this tower will be destroyed when the vent propegates
     var scene = this.scene;
     setTimeout(function() {
-      scene.events.emit("tower-destroyed");
+      if (scene && scene.sys && scene.events) {
+        scene.events.emit("tower-destroyed");
+      }
     }, 1500);
 
     super.destroy();

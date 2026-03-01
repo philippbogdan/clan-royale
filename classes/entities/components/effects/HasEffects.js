@@ -108,6 +108,9 @@ HasEffects.methods = {
   // Called when an entity with this component is updated
   _preUpdate(time, delta) {
     try {
+      // Skip all combat logic during tactical pause
+      if (this.scene._tacticalFrozen) return;
+
       if (this.attentionArea) {
         this.attentionArea.setPosition(this.x, this.y);
       }

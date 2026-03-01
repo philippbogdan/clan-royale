@@ -1,5 +1,3 @@
-import Phaser from "phaser";
-
 class HasDamageEffect {
   constructor() {
     var attributes = {
@@ -19,7 +17,7 @@ HasDamageEffect.methods = {
   // </Setters>
 
   doDamageEffect(target) {
-    // Do visual effect
+    // Do visual effect on attacker (scale pulse)
     this.scene.tweens.add({
       targets: [this],
       scaleX: 1.1 + this.damageAmount * 0.025,
@@ -30,6 +28,25 @@ HasDamageEffect.methods = {
       repeat: 0,
       callbackScope: this
     });
+
+    // Hit flash on target
+    if (target && !target.isDestroyed) {
+      target.setTintFill(0xffffff);
+      target.scene.time.delayedCall(100, () => {
+        if (target && !target.isDestroyed) target.clearTint();
+      });
+    }
+
+    // Floating damage number via HTML overlay
+    if (target && !target.isDestroyed) {
+      const overlay = window.__textOverlay;
+      if (overlay) {
+        const ox = (Math.random() - 0.5) * 6;
+        overlay.addFloating(target.x + ox, target.y - 10, String(this.damageAmount), {
+          fontSize: 8, color: '#ff4444', stroke: '#000000', fontWeight: 'bold'
+        });
+      }
+    }
 
     // affect health of target here
     target.deductHealth(this.damageAmount);

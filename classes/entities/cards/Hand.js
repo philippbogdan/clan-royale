@@ -56,6 +56,35 @@ class Hand extends Phaser.GameObjects.Container {
     this.cardSource.addAt(usedCard, 0); // Put the used card back into the deck
   }
 
+  getCardByName(name) {
+    for (let i = 0; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (
+        slot.card &&
+        slot.card.troopClass &&
+        slot.card.troopClass.NAME.toLowerCase() === name.toLowerCase()
+      ) {
+        return { slot, slotIndex: i };
+      }
+    }
+    return null;
+  }
+
+  getAvailableCards() {
+    const cards = [];
+    for (let i = 0; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (slot.card && slot.card.troopClass) {
+        cards.push({
+          name: slot.card.troopClass.NAME,
+          cost: slot.card.troopClass.COST,
+          slotIndex: i
+        });
+      }
+    }
+    return cards;
+  }
+
   destroy() {
     super.destroy();
   }

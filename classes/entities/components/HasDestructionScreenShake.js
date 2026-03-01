@@ -13,9 +13,11 @@ HasDestructionScreenShake.methods = {
   // Called when an entity with this component is destroyed
   _destroy() {
     try {
-      if (!this.isDestroyed)
+      if (!this.isDestroyed) {
         // Seems to be an issue calling this when already sdestroeyd while switching scenes? This hack fixes, should probably find root cause
         this.scene.cameras.main.shake();
+        this.scene.cameras.main.flash(200, 255, 255, 255);
+      }
     } catch (e) {
       console.error(e);
     }

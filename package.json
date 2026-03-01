@@ -8,10 +8,20 @@
     "build": "parcel build index.html"
   },
   "dependencies": {
+    "@elevenlabs/client": "^0.15.0",
+    "@mistralai/mistralai": "^1.5.0",
+    "@playwright/test": "^1.58.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "phaser": "3.22.0"
   },
   "devDependencies": {
-    "parcel-bundler": "^1.6.1"
+    "parcel-bundler": "^1.6.1",
+    "parcel-plugin-static-files-copy": "^2.6.0"
   },
-  "keywords": []
+  "keywords": [],
+  "staticFiles": {
+    "staticPath": "static"
+  }
 }

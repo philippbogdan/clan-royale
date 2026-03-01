@@ -23,7 +23,7 @@ class ManaBank {
         this.renderMana();
       }
 
-      scene.time.addEvent({
+      this.regenEvent = scene.time.addEvent({
         delay: 100,
         loop: true,
         callback: this.incrementMana,

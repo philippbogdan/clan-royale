@@ -3,7 +3,7 @@ class HasHealth {
     var attributes = {
       currentHealth: 100,
       overallHealth: 100,
-      healthDisplay: null
+      _healthOverlayId: null
     };
 
     Object.assign(this, attributes);
@@ -32,18 +32,18 @@ HasHealth.methods = {
   },
 
   initHealthBar() {
-    this.healthDisplay = this.scene.add
-      .text(this.x, this.y, this.currentHealth, {
-        fontSize: "8px",
-        color: "white"
-      })
-      //.bitmapText(x, y, "teeny-tiny-pixls", "S" + this.health, 20)
-      .setOrigin(0.5, 0.5)
-      .setDepth(999999); //.setOffset(0.5, 1);
+    const overlay = window.__textOverlay;
+    if (overlay) {
+      this._healthOverlayId = overlay.add(this.x, this.y - this.height, String(this.currentHealth), {
+        fontSize: 7, color: '#ffffff', stroke: '#000000', fontWeight: 'bold'
+      });
+    }
   },
 
   updateHealthDisplay() {
-    if (this.healthDisplay) this.healthDisplay.setText(this.currentHealth);
+    if (window.__textOverlay && this._healthOverlayId != null) {
+      window.__textOverlay.setText(this._healthOverlayId, String(this.currentHealth));
+    }
   },
 
   checkIfDead() {
@@ -59,13 +59,17 @@ HasHealth.methods = {
 
   // Called when an entity with this component is updated
   _preUpdate() {
-    if (this.healthDisplay)
-      this.healthDisplay.setPosition(this.x, this.y - this.height);
+    if (window.__textOverlay && this._healthOverlayId != null) {
+      window.__textOverlay.setPosition(this._healthOverlayId, this.x, this.y - this.height);
+    }
   },
 
   // Called when an entity with this component is destroyed
   _destroy() {
-    if (this.healthDisplay) this.healthDisplay.destroy();
+    if (window.__textOverlay && this._healthOverlayId != null) {
+      window.__textOverlay.remove(this._healthOverlayId);
+      this._healthOverlayId = null;
+    }
   }
   // </Hook into phaser and internal events>
 };

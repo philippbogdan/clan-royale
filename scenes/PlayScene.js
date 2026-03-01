@@ -2,6 +2,9 @@ import { Phaser, Scene } from "phaser";
 
 import ControlledPlayer from "../classes/player/ControlledPlayer.js";
 import ComputerPlayer from "../classes/player/ComputerPlayer.js";
+import GameAPI from "../classes/GameAPI.js";
+import VoiceSession from "../classes/VoiceSession.js";
+import SpeechInput from "../classes/SpeechInput.js";
 
 import Components from "../classes/entities/components";
 
@@ -29,7 +32,7 @@ export default class PlayScene extends Scene {
       const halfGameHeight = gameHeight / 2;
 
       this.cardHolderWidth = gameWidth;
-      this.cardHolderHeight = 50;
+      this.cardHolderHeight = 46;
 
       // Set the physics world size
       this.physics.world.setBounds(
@@ -73,7 +76,13 @@ export default class PlayScene extends Scene {
         this.player.troops,
         (aggroArea, enemyTroop) => {
           const thisTroop = aggroArea.troop;
+          if (!thisTroop || thisTroop.isDestroyed || enemyTroop.isDestroyed) return;
           thisTroop.initiateEffect(enemyTroop);
+          const now = Date.now();
+          if (now - this._lastHitSfxTime > 1200) {
+            this._lastHitSfxTime = now;
+            if (window.__playSFX) window.__playSFX('hit');
+          }
         }
       );
 
@@ -83,7 +92,13 @@ export default class PlayScene extends Scene {
         this.opponent.troops,
         (aggroArea, enemyTroop) => {
           const thisTroop = aggroArea.troop;
+          if (!thisTroop || thisTroop.isDestroyed || enemyTroop.isDestroyed) return;
           thisTroop.initiateEffect(enemyTroop);
+          const now = Date.now();
+          if (now - this._lastHitSfxTime > 1200) {
+            this._lastHitSfxTime = now;
+            if (window.__playSFX) window.__playSFX('hit');
+          }
         }
       );
 
@@ -129,19 +144,73 @@ export default class PlayScene extends Scene {
 
       this.weather = new WeatherSystem(this);
 
+      // --- Background music ---
+      try {
+        if (this.cache.audio.exists('music')) {
+          this.bgMusic = this.sound.add('music', { volume: 0.15, loop: true });
+          this.time.delayedCall(500, () => {
+            if (this.bgMusic) this.bgMusic.play();
+          });
+        }
+      } catch (e) {
+        console.warn('Could not start background music:', e);
+      }
+
+      // --- SFX ---
+      this._sfx = {};
+      this._lastHitSfxTime = 0;
+      const sfxConfig = { 'sfx-hit': { name: 'hit', volume: 0.08 }, 'sfx-spawn': { name: 'spawn', volume: 0.15 }, 'sfx-destroy': { name: 'destroy', volume: 0.20 } };
+      for (const [key, cfg] of Object.entries(sfxConfig)) {
+        if (this.cache.audio.exists(key)) {
+          this._sfx[cfg.name] = this.sound.add(key, { volume: cfg.volume });
+        }
+      }
+      const self = this;
+      window.__playSFX = (name) => {
+        if (self._sfx && self._sfx[name]) self._sfx[name].play();
+      };
+
+      // Expose GameAPI for AI voice control
+      this.gameAPI = new GameAPI(this);
+      window.gameAPI = this.gameAPI;
+
+      // Always-on speech input: Player Voice → Text → Mistral → GameAPI → TTS
+      this.speechInput = new SpeechInput(this.gameAPI);
+      window.__speechInput = this.speechInput; // expose for TTS feedback prevention
+      this.speechInput.start();
+
+      // ElevenLabs voice session (optional — connects if agent ID is available)
+      this.voiceSession = new VoiceSession(this.gameAPI);
+      this.speechInput.onTranscript = (text, isFinal) => {
+        if (this.voiceSession && this.voiceSession.isActive()) {
+          try { this.voiceSession.sendText(text); } catch(e) { /* ignore */ }
+        }
+      };
+      // Only start ElevenLabs if explicitly configured via env var
+      if (window.__ELEVENLABS_AGENT_ID) {
+        this.voiceSession.start(window.__ELEVENLABS_AGENT_ID);
+      }
+
       // Check win condition whenever towers are destroyed!
       // Towers emit a "tower-destroyed" event to the scene when destroyed
+      this._sceneEnding = false;
       this.events.on("tower-destroyed", () => {
         try {
+          if (this._sceneEnding) return;
+          if (window.__playSFX) window.__playSFX('destroy');
           // Did this player win?
           if (this.player.towers.getLength() === 0) {
+            this._sceneEnding = true;
             this.events.off("tower-destroyed");
+            this.physics.world.shutdown();
             this.scene.start("LoseScene");
           }
 
           // Did the opponent win?
           else if (this.opponent.towers.getLength() === 0) {
+            this._sceneEnding = true;
             this.events.off("tower-destroyed");
+            this.physics.world.shutdown();
             this.scene.start("WinScene");
           }
         } catch (e) {
@@ -153,9 +222,61 @@ export default class PlayScene extends Scene {
     }
   }
 
-  update(time, delta) {}
+  freezeGame() {
+    this.physics.pause();
+    this._tacticalFrozen = true;
+    // Pause the opponent's decision/spawn timer
+    if (this.opponent && this.opponent.decisionInterval) {
+      this.opponent.decisionInterval.paused = true;
+    }
+    // Pause mana regen for both players
+    if (this.player && this.player.manaBank && this.player.manaBank.regenEvent) {
+      this.player.manaBank.regenEvent.paused = true;
+    }
+    if (this.opponent && this.opponent.manaBank && this.opponent.manaBank.regenEvent) {
+      this.opponent.manaBank.regenEvent.paused = true;
+    }
+    // Pause all tweens on troops so attack animations freeze
+    this.tweens.pauseAll();
+    this.events.emit('tactical-freeze');
+  }
+
+  unfreezeGame() {
+    this._tacticalFrozen = false;
+    this.physics.resume();
+    // Resume the opponent's decision/spawn timer
+    if (this.opponent && this.opponent.decisionInterval) {
+      this.opponent.decisionInterval.paused = false;
+    }
+    // Resume mana regen for both players
+    if (this.player && this.player.manaBank && this.player.manaBank.regenEvent) {
+      this.player.manaBank.regenEvent.paused = false;
+    }
+    if (this.opponent && this.opponent.manaBank && this.opponent.manaBank.regenEvent) {
+      this.opponent.manaBank.regenEvent.paused = false;
+    }
+    // Resume all tweens
+    this.tweens.resumeAll();
+    this.events.emit('tactical-unfreeze');
+  }
+
+  update(time, delta) {
+    if (window.__textOverlay) window.__textOverlay.update();
+    if (this.gameAPI && !this._sceneEnding) {
+      this.gameAPI.processQueue();
+    }
+  }
 
   destroy() {
+    // Stop background music
+    if (this.bgMusic) {
+      this.bgMusic.stop();
+      this.bgMusic = null;
+    }
+    // Clean up SFX
+    this._sfx = {};
+    window.__playSFX = null;
+
     this.player.destroy();
     this.opponent.destroy();
     super.destroy();

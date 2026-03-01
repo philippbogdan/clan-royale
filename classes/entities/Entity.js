@@ -20,6 +20,11 @@ export default class Entity extends Phaser.GameObjects.Sprite {
   }
 
   preUpdate(time, delta) {
+    if (this.isDestroyed) return;
+
+    // Guard against scene teardown — scene systems may already be destroyed
+    if (!this.scene || !this.scene.sys || !this.scene.sys.events) return;
+
     // Call the _init method of each of this entity's components, if it exists
     if (!this.isInitialized) {
       this.mixins.forEach(component => {
@@ -38,12 +43,16 @@ export default class Entity extends Phaser.GameObjects.Sprite {
   }
 
   destroy() {
+    if (this.isDestroyed) return;
     this.isDestroyed = true;
 
     // Call the _destroy method of each of this entity's components, if it exists
-    this.mixins.forEach(component => {
-      if (component.methods._destroy) component.methods._destroy.call(this);
-    });
+    // Guard: scene may already be torn down during batch cleanup
+    if (this.scene && this.scene.sys && this.scene.sys.events) {
+      this.mixins.forEach(component => {
+        if (component.methods._destroy) component.methods._destroy.call(this);
+      });
+    }
 
     super.destroy();
   }

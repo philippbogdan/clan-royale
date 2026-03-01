@@ -16,10 +16,10 @@ export default class ControlledPlayer extends Player {
     const gameHeight = scene.game.config.height;
     this.manaBank = new ManaBank(
       scene,
-      gameWidth / 2,
-      gameHeight - 5,
-      gameWidth,
-      8
+      30,
+      gameHeight - scene.cardHolderHeight - 5,
+      50,
+      6
     );
     // </ManaBank>
 
