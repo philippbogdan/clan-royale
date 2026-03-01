@@ -260,6 +260,46 @@
         opacity: 1;
       }
 
+      /* ---- Report button (bottom-right) ---- */
+      #report-btn {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 101;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 2px solid #6B4F0E;
+        background: linear-gradient(180deg, #DAA520, #B8860B 60%, #8B6914);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 10px rgba(184, 134, 11, 0.25);
+        transition: transform 0.15s, box-shadow 0.15s;
+        outline: none;
+        -webkit-tap-highlight-color: transparent;
+        text-decoration: none;
+      }
+
+      #report-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 18px rgba(184, 134, 11, 0.4);
+      }
+
+      #report-btn:active {
+        transform: scale(0.95);
+      }
+
+      #report-btn svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: #1a1000;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
 
     </style>
 
@@ -286,6 +326,17 @@
         <div id="mic-error"></div>
       </div>
     </div>
+
+    <!-- Report link -->
+    <a id="report-btn" title="Evaluation Report" target="_blank">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 3L9 8C9 8 7 12 7 15C7 18 9 21 12 21C15 21 17 18 17 15C17 12 15 8 15 8L15 3"/>
+        <line x1="9" y1="3" x2="15" y2="3"/>
+        <line x1="9" y1="8" x2="15" y2="8"/>
+        <circle cx="11" cy="15" r="1" fill="#1a1000" stroke="none"/>
+        <circle cx="14" cy="13" r="0.7" fill="#1a1000" stroke="none"/>
+      </svg>
+    </a>
 
     <div id="game-container"></div>
 
@@ -434,6 +485,12 @@
         window.gameMode = 'spectator';
         window.spectatorModelType = 'finetuned';
         dismissLanding();
+      });
+
+      // ---- Report button ----
+      document.getElementById("report-btn").addEventListener("click", function(e) {
+        e.preventDefault();
+        window.open(window.location.origin + "/report.html", "_blank");
       });
 
       function dismissLanding() {
