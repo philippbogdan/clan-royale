@@ -15,7 +15,6 @@ export default class Entity extends Phaser.GameObjects.Sprite {
     this.mixins.forEach(component => {
       let componentInstance = new component();
       Object.assign(this, componentInstance);
-      //console.log(this);
     });
   }
 

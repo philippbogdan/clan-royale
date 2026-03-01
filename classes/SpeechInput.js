@@ -2,14 +2,6 @@
 // Streams mic audio over WebSocket to Deepgram Nova-2 for low-latency transcription
 import { getApiUrl, getDeepgramWsUrl } from "../settings/api.js";
 
-function debugLog(event, data) {
-  if (typeof window === 'undefined') return;
-  if (!window.__voiceDebugLog) window.__voiceDebugLog = [];
-  var entry = { t: new Date().toISOString(), event: event, data: data || null };
-  window.__voiceDebugLog.push(entry);
-  console.log('[SpeechInput]', entry.t, event, data || '');
-}
-
 function voiceLog(text, type) {
   if (typeof window !== 'undefined' && window.addVoiceLog) {
     window.addVoiceLog(text, type || 'system');
@@ -77,30 +69,21 @@ export default class SpeechInput {
   }
 
   async start() {
-    console.log('%c[SpeechInput] start() called', 'color: lime; font-weight: bold');
     // 1. Get mic stream — reuse shared stream from landing page if available
     let stream;
     if (window.__micStream) {
       stream = window.__micStream;
       this._ownsMicStream = false;
-      console.log('%c[SpeechInput] Reusing shared mic stream', 'color: lime');
-      debugLog('mic_reuse_shared');
     } else {
       try {
-        console.log('%c[SpeechInput] Requesting mic...', 'color: yellow');
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         this._ownsMicStream = true;
-        console.log('%c[SpeechInput] Mic acquired', 'color: lime');
-        debugLog('mic_acquired');
       } catch (e) {
-        console.error('[SpeechInput] Mic denied:', e.message);
-        debugLog('mic_error', { error: e.message });
         voiceLog('Microphone access denied', 'error');
         return;
       }
     }
     this._micStream = stream;
-    console.log('[SpeechInput] Stream tracks:', stream.getTracks().map(t => t.kind + ':' + t.readyState));
 
     // Initialize global state for UI consumption
     window.__userSpeaking = false;
@@ -119,9 +102,8 @@ export default class SpeechInput {
       this._vadSpeechFrames = 0;
       this._vadSilenceFrames = 0;
       this._vadInterval = setInterval(() => this._pollVAD(), 50);
-      debugLog('vad_started');
     } catch (e) {
-      debugLog('vad_setup_error', { error: e.message });
+      // VAD setup failed — non-critical
     }
 
     this.isRunning = true;
@@ -129,7 +111,6 @@ export default class SpeechInput {
     // 2. Connect to Deepgram via server proxy
     this._connectDeepgram();
 
-    debugLog('speech_started');
     voiceLog('Voice input active (Deepgram STT)', 'system');
   }
 
@@ -160,12 +141,10 @@ export default class SpeechInput {
     // Require 3 consecutive speech frames (~150ms) to declare speaking
     if (this._vadSpeechFrames >= 3 && !window.__userSpeaking) {
       window.__userSpeaking = true;
-      if (window.addSTTLog) window.addSTTLog('vad', 'speech START');
     }
     // Require 10 consecutive silence frames (~500ms) to stop
     if (this._vadSilenceFrames >= 10 && window.__userSpeaking) {
       window.__userSpeaking = false;
-      if (window.addSTTLog) window.addSTTLog('vad', 'speech END');
     }
   }
 
@@ -175,13 +154,10 @@ export default class SpeechInput {
     // Connect through our server proxy (handles Deepgram auth server-side)
     // Deepgram auto-detects WebM/Opus containers, no encoding hint needed
     const wsUrl = getDeepgramWsUrl();
-    console.log('%c[SpeechInput] Connecting WS: ' + wsUrl, 'color: cyan');
     const ws = new WebSocket(wsUrl);
     this._ws = ws;
 
     ws.onopen = () => {
-      console.log('%c[SpeechInput] WS OPEN — starting MediaRecorder', 'color: lime; font-weight: bold');
-      debugLog('deepgram_ws_open');
       this._startMediaRecorder();
     };
 
@@ -197,16 +173,6 @@ export default class SpeechInput {
         if (!text) return;
 
         const isFinal = msg.is_final === true || msg.speech_final === true;
-        const sttLog = window.addSTTLog;
-
-        // Log EVERY transcript to debug panel
-        if (sttLog) {
-          if (isFinal) {
-            sttLog('final', text, 'conf=' + (alt.confidence || 0).toFixed(2));
-          } else {
-            sttLog('interim', text);
-          }
-        }
 
         // Expose transcript globally for UI display (both interim and final)
         window.__currentTranscript = text;
@@ -214,7 +180,6 @@ export default class SpeechInput {
         // EARLY TACTICAL FREEZE: freeze game on first interim transcript
         if (!isFinal && text.length > 2 && !this._isEcho(text) && !this._earlyFreezeActive && !this._strategyPending) {
           this._earlyFreezeActive = true;
-          debugLog('early_freeze', { text });
 
           // Freeze game immediately
           if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.freezeGame) {
@@ -232,7 +197,6 @@ export default class SpeechInput {
           this._earlyFreezeTimeout = setTimeout(() => {
             if (this._earlyFreezeActive) {
               this._earlyFreezeActive = false;
-              debugLog('early_freeze_timeout');
               if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.unfreezeGame) {
                 this.gameAPI.scene.unfreezeGame();
               }
@@ -241,7 +205,6 @@ export default class SpeechInput {
         }
         // Also interrupt TTS on interim if muted but already in early freeze
         else if (!isFinal && this.isMuted && text.length > 2 && !this._isEcho(text)) {
-          debugLog('speech_interrupt_tts', { text });
           if (typeof window !== 'undefined' && window.__interruptTTS) {
             window.__interruptTTS();
           }
@@ -255,8 +218,6 @@ export default class SpeechInput {
 
             // Not meaningful (too short or echo) → unfreeze and return
             if (text.length <= 2 || this._isEcho(text)) {
-              debugLog('early_freeze_noise', { text });
-              if (sttLog) sttLog('skip', text, 'noise → unfreeze');
               if (this.gameAPI && this.gameAPI.scene && this.gameAPI.scene.unfreezeGame) {
                 this.gameAPI.scene.unfreezeGame();
               }
@@ -264,8 +225,6 @@ export default class SpeechInput {
             }
 
             // Meaningful → proceed to Mistral (game stays frozen, cinematicDeploy will manage)
-            if (sttLog) sttLog('sent', text, '-> Mistral');
-            debugLog('speech_transcript', { text, confidence: alt.confidence });
             voiceLog('You: ' + text, 'player');
             this._askMistralStrategy(text);
             if (this.onTranscript) this.onTranscript(text, isFinal);
@@ -276,27 +235,19 @@ export default class SpeechInput {
           // NORMAL PATH (no early freeze active)
           // Skip if muted (AI is speaking - prevents feedback loop)
           if (this.isMuted) {
-            if (sttLog) sttLog('skip', text, 'muted');
-            debugLog('speech_ignored_muted', { text });
             return;
           }
 
           // Cooldown: ignore transcripts arriving within 800ms of unmute
           if (this._lastUnmuteTime && Date.now() - this._lastUnmuteTime < 800) {
-            if (sttLog) sttLog('skip', text, 'cooldown ' + (Date.now() - this._lastUnmuteTime) + 'ms');
-            debugLog('speech_ignored_cooldown', { text, elapsed: Date.now() - this._lastUnmuteTime });
             return;
           }
 
           // Skip if this is just the mic picking up agent's TTS output
           if (this._isEcho(text)) {
-            if (sttLog) sttLog('skip', text, 'echo');
-            debugLog('speech_ignored_echo', { text });
             return;
           }
 
-          if (sttLog) sttLog('sent', text, '-> Mistral');
-          debugLog('speech_transcript', { text, confidence: alt.confidence });
           voiceLog('You: ' + text, 'player');
 
           // All commands go through Mistral for cinematic deploy
@@ -308,25 +259,20 @@ export default class SpeechInput {
           setTimeout(() => { window.__currentTranscript = ''; }, 2000);
         }
       } catch (e) {
-        debugLog('deepgram_parse_error', { error: e.message });
+        // parse error — ignore
       }
     };
 
-    ws.onclose = (event) => {
-      console.warn('[SpeechInput] WS CLOSED code=' + event.code + ' reason=' + event.reason);
-      debugLog('deepgram_ws_close', { code: event.code, reason: event.reason });
+    ws.onclose = () => {
       this._stopMediaRecorder();
       // Reconnect if still running
       if (this.isRunning) {
-        debugLog('deepgram_reconnecting');
         setTimeout(() => this._connectDeepgram(), 1000);
       }
     };
 
-    ws.onerror = (event) => {
-      console.error('[SpeechInput] WS ERROR:', event);
-      debugLog('deepgram_ws_error', { error: String(event) });
-    };
+    ws.onerror = () => {};
+
   }
 
   _startMediaRecorder() {
@@ -335,14 +281,10 @@ export default class SpeechInput {
     // Pick a supported mime type (Safari only supports audio/mp4)
     let mimeType = 'audio/webm;codecs=opus';
     if (typeof MediaRecorder !== 'undefined') {
-      const supported = [];
-      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', '']) {
-        if (t === '' || MediaRecorder.isTypeSupported(t)) supported.push(t);
+      for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
+        if (MediaRecorder.isTypeSupported(t)) { mimeType = t; break; }
       }
-      console.log('[SpeechInput] Supported mime types:', supported);
-      mimeType = supported[0] || '';
     }
-    console.log('%c[SpeechInput] Using mimeType: "' + mimeType + '"', 'color: cyan; font-weight: bold');
 
     try {
       const recorder = mimeType
@@ -350,27 +292,17 @@ export default class SpeechInput {
         : new MediaRecorder(this._micStream);
       this._mediaRecorder = recorder;
 
-      let chunkCount = 0;
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0 && this._ws && this._ws.readyState === WebSocket.OPEN) {
-          chunkCount++;
-          if (chunkCount <= 5 || chunkCount % 50 === 0) {
-            console.log('[SpeechInput] Audio chunk #' + chunkCount + ' size=' + event.data.size + ' ws=' + this._ws.readyState);
-          }
           this._ws.send(event.data);
         }
       };
 
-      recorder.onerror = (e) => {
-        console.error('[SpeechInput] MediaRecorder error:', e);
-      };
+      recorder.onerror = () => {};
 
       recorder.start(100); // send chunk every 100ms
-      console.log('%c[SpeechInput] MediaRecorder started, state=' + recorder.state, 'color: lime; font-weight: bold');
-      debugLog('media_recorder_started', { mimeType });
     } catch (e) {
-      console.error('[SpeechInput] MediaRecorder creation FAILED:', e.message);
-      debugLog('media_recorder_error', { error: e.message });
+      // MediaRecorder creation failed
     }
   }
 
@@ -425,14 +357,12 @@ export default class SpeechInput {
     this._micStream = null;
     this._ownsMicStream = false;
 
-    debugLog('speech_stopped');
   }
 
   /** Unfreeze game if it's stuck frozen from early tactical pause (no cinematic deploy ran) */
   _unfreezeIfNeeded() {
     const scene = this.gameAPI && this.gameAPI.scene;
     if (scene && scene._tacticalFrozen && !this.gameAPI._cinematicActive) {
-      debugLog('unfreeze_after_strategy');
       scene.unfreezeGame();
     }
   }
@@ -440,13 +370,11 @@ export default class SpeechInput {
   /** Mute to prevent feedback when AI speaks */
   mute() {
     this.isMuted = true;
-    debugLog('speech_muted');
   }
 
   unmute() {
     this.isMuted = false;
     this._lastUnmuteTime = Date.now();
-    debugLog('speech_unmuted');
   }
 
   /**
@@ -457,17 +385,13 @@ export default class SpeechInput {
     if (this._strategyPending) {
       if (!this._pendingCommands) this._pendingCommands = [];
       this._pendingCommands.push(playerCommand);
-      if (window.addSTTLog) window.addSTTLog('queue', playerCommand, 'queued #' + this._pendingCommands.length);
-      debugLog('strategy_queued', { command: playerCommand, queueLength: this._pendingCommands.length });
       voiceLog('Queued: ' + playerCommand, 'system');
       return;
     }
     this._strategyPending = true;
-    if (window.addSTTLog) window.addSTTLog('strategy', playerCommand, 'requesting...');
 
     try {
       const gameState = this.gameAPI.getGameState();
-      debugLog('strategy_request', { command: playerCommand, mana: gameState.mana });
       voiceLog('Thinking...', 'system');
 
       const response = await fetch(getApiUrl("/api/strategy"), {
@@ -479,11 +403,6 @@ export default class SpeechInput {
       if (!response.ok) throw new Error('Strategy API returned ' + response.status);
 
       const data = await response.json();
-      debugLog('strategy_response', data);
-      if (window.addSTTLog) {
-        const actions = (data.actions || []).map(a => a.card || a.type).join(', ');
-        window.addSTTLog('strategy', actions || 'no actions', data.reasoning || '');
-      }
 
       // Execute the recommended actions
       if (data.actions && data.actions.length > 0) {
@@ -497,7 +416,6 @@ export default class SpeechInput {
           const failed = results.filter(r => !r.success).map(r => r.error);
           if (deployed.length > 0) voiceLog('Deployed: ' + deployed.join(', '), 'action');
           if (failed.length > 0) voiceLog('Failed: ' + failed.join('; '), 'error');
-          debugLog('cinematic_deployed', { deployed, failed, reasoning: msg });
         } else {
           // Fallback: direct execution
           const results = this.gameAPI.executeActions(data.actions);
@@ -506,7 +424,6 @@ export default class SpeechInput {
           if (deployed.length > 0) voiceLog('Deployed: ' + deployed.join(', '), 'action');
           if (failed.length > 0) voiceLog('Failed: ' + failed.join('; '), 'error');
           if (window.__speakText) window.__speakText(msg);
-          debugLog('strategy_executed', { deployed, failed, reasoning: msg });
           this._unfreezeIfNeeded();
         }
       } else {
@@ -519,7 +436,6 @@ export default class SpeechInput {
         this._unfreezeIfNeeded();
       }
     } catch (e) {
-      debugLog('strategy_error', { error: e.message });
       voiceLog('Strategy unavailable', 'error');
       // Unfreeze if game was frozen by early tactical pause
       this._unfreezeIfNeeded();
@@ -529,7 +445,6 @@ export default class SpeechInput {
       // Process next queued command if any
       if (this._pendingCommands && this._pendingCommands.length > 0) {
         const nextCommand = this._pendingCommands.shift();
-        debugLog('strategy_dequeue', { command: nextCommand, remaining: this._pendingCommands.length });
         this._askMistralStrategy(nextCommand);
       }
     }

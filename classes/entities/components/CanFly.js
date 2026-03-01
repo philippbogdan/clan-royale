@@ -48,7 +48,6 @@ CanFly.methods = {
       );
 
       if (nextWaypoint) {
-        console.log("FOUND WAYPOINT");
         this.scene.physics.moveTo(
           this,
           nextWaypoint.x,
@@ -63,7 +62,6 @@ CanFly.methods = {
           this,
           nextWaypoint,
           () => {
-            console.log("HIT WAYPOINT");
             this.getNextWaypoint();
           }
         );

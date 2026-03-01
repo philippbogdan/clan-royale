@@ -16,10 +16,7 @@ const STATUS_LABELS = {
 export default class VoiceUI {
   constructor(containerId = "voice-ui") {
     this.container = document.getElementById(containerId);
-    if (!this.container) {
-      console.error(`[VoiceUI] #${containerId} not found in DOM`);
-      return;
-    }
+    if (!this.container) return;
 
     this.voiceSession = null;
     this.agentId = null;
@@ -244,7 +241,7 @@ export default class VoiceUI {
       fetch(getApiUrl("/api/config"))
         .then(r => r.json())
         .then(data => { if (data.agentId) this.setAgentId(data.agentId); })
-        .catch(e => console.warn('[VoiceUI] Could not fetch config:', e));
+        .catch(() => {});
     }
 
     this.voiceSession.onMessage = (msg) => {

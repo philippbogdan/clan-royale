@@ -1,14 +1,6 @@
 import { Conversation } from "@elevenlabs/client";
 import { getApiUrl } from "../settings/api.js";
 
-function debugLog(event, data) {
-  if (typeof window === 'undefined') return;
-  if (!window.__voiceDebugLog) window.__voiceDebugLog = [];
-  var entry = { t: new Date().toISOString(), event: event, data: data || null };
-  window.__voiceDebugLog.push(entry);
-  console.log('[Voice]', entry.t, event, data || '');
-}
-
 function voiceLog(text, type) {
   if (typeof window !== 'undefined' && window.addVoiceLog) {
     window.addVoiceLog(text, type || 'system');
@@ -169,8 +161,6 @@ export default class VoiceSession {
   async start(agentId) {
     if (agentId) this._agentId = agentId;
 
-    debugLog("start", { agentId: this._agentId, textOnly: true });
-
     if (this.conversation) {
       await this.stop();
     }
@@ -185,41 +175,23 @@ export default class VoiceSession {
         window.__micStream = null;
       }
 
-      debugLog("session_starting", { mode: "textOnly" });
-
       this.conversation = await Conversation.startSession({
         agentId: this._agentId,
         textOnly: true,
         clientTools: {
           get_game_state: async () => {
-            debugLog("tool_call", { tool: "get_game_state" });
-            voiceLog("Tool: get_game_state called", "tool");
             if (!this.gameAPI) return JSON.stringify({ error: "GameAPI not connected" });
             const state = this.gameAPI.getGameState();
-            const result = JSON.stringify(state);
-            debugLog("tool_result", { tool: "get_game_state", keys: Object.keys(state) });
-            voiceLog("Tool: game state sent (" + Object.keys(state).join(", ") + ")", "tool");
-            return result;
+            return JSON.stringify(state);
           },
           execute_actions: async ({ actions }) => {
             if (!this.gameAPI) return JSON.stringify({ error: "GameAPI not connected" });
             const parsed = typeof actions === "string" ? JSON.parse(actions) : actions;
-            debugLog("tool_call", { tool: "execute_actions", actions: parsed });
-            voiceLog("Tool: execute_actions — " + JSON.stringify(parsed).slice(0, 100), "tool");
             const actionResult = this.gameAPI.executeActions(parsed);
-            const result = JSON.stringify(actionResult);
-            debugLog("tool_result", { tool: "execute_actions", result });
-            // Show clean action results
-            for (const r of actionResult) {
-              if (r.success) {
-                voiceLog("Deployed " + r.card + " " + r.lane, "action");
-              }
-            }
-            return result;
+            return JSON.stringify(actionResult);
           },
         },
         onMessage: (msg) => {
-          debugLog("message_received", { source: msg.source, message: msg.message });
           if (msg.source === "ai") {
             voiceLog("Commander: " + msg.message, "agent");
             // Record message for echo detection before speaking
@@ -232,23 +204,19 @@ export default class VoiceSession {
           if (this.onMessage) this.onMessage(msg);
         },
         onModeChange: (mode) => {
-          debugLog("mode_change", { mode: JSON.stringify(mode) });
           if (this.onModeChange) this.onModeChange(mode);
         },
         onStatusChange: (status) => {
-          debugLog("status_change", { status });
           const statusStr = typeof status === 'object' ? (status.status || JSON.stringify(status)) : status;
           voiceLog("Status: " + statusStr, "system");
           this.setStatus(status);
         },
         onError: (err) => {
-          debugLog("error", { message: err.message, stack: err.stack, raw: String(err) });
           console.error("[VoiceSession] Error:", err);
           voiceLog("Error: " + (err.message || err), "error");
           if (this.onError) this.onError(err);
         },
         onDisconnect: () => {
-          debugLog("disconnect");
           this._handleDisconnect();
         },
       });
@@ -256,7 +224,6 @@ export default class VoiceSession {
       this._reconnecting = false;
       if (!this._isReconnect) this._reconnectAttempts = 0;
       this._isReconnect = false;
-      debugLog("connected", { textOnly: true });
       voiceLog("Voice agent connected (text mode)!", "system");
       this.setStatus("connected");
 
@@ -267,11 +234,9 @@ export default class VoiceSession {
           this.conversation.sendUserMessage(
             "Battle started! I have " + (state.mana || 0) + " mana. What should I play?"
           );
-          debugLog("initial_engage", { mana: state.mana });
         }
       }, 500);
     } catch (err) {
-      debugLog("error", { message: err.message, stack: err.stack, raw: String(err) });
       console.error("[VoiceSession] Failed to start:", err);
       voiceLog("Connection failed: " + err.message, "error");
       this.setStatus("error");
@@ -295,7 +260,6 @@ export default class VoiceSession {
       }
       this.conversation = null;
     }
-    debugLog("session_stopped");
     voiceLog("Voice session stopped", "system");
     this.setStatus("disconnected");
   }
@@ -305,7 +269,6 @@ export default class VoiceSession {
     this._reconnectAttempts++;
 
     if (this._reconnectAttempts > 1) {
-      debugLog("reconnect_stopped");
       this._reconnecting = false;
       this.conversation = null;
       this.setStatus("disconnected");
@@ -316,7 +279,6 @@ export default class VoiceSession {
     this._reconnecting = true;
     this.conversation = null;
 
-    debugLog("reconnect_attempt", { attempt: this._reconnectAttempts });
     this.setStatus("reconnecting");
 
     await new Promise((r) => setTimeout(r, 2000));
@@ -327,7 +289,6 @@ export default class VoiceSession {
       this._isReconnect = true;
       await this.start();
     } catch (err) {
-      debugLog("reconnect_failed");
       voiceLog("Reconnection failed", "error");
       console.error("[VoiceSession] Reconnect failed:", err);
       this._reconnecting = false;
@@ -349,7 +310,6 @@ export default class VoiceSession {
   sendText(text) {
     if (!this.conversation || !this.isActive()) return;
     try {
-      debugLog("send_user_message", { text });
       voiceLog("\u2192 Agent: " + text, "system");
       this.conversation.sendUserMessage(text);
     } catch (e) {
@@ -372,7 +332,6 @@ export default class VoiceSession {
     }
 
     try {
-      debugLog("contextual_update", { text });
       voiceLog("Context update: " + text, "system");
       await this.conversation.sendContextualUpdate({ text });
     } catch (e) {

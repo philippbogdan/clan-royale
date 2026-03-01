@@ -20,7 +20,7 @@ export default class PhysicalEntity extends Phaser.Physics.Arcade.Sprite {
         Object.assign(this, componentInstance);
       });
     } catch (e) {
-      console.log(e);
+      // constructor error — ignore to avoid blocking scene load
     }
   }
 

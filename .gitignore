@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+dist/
+.cache/
+
+# Local env and editor/OS files
+.env
+.env.local
+.DS_Store
+.art/
+.playwright-mcp/
+
+# Runtime/training artifacts
+wandb/
+evaluation/logs/
+evaluation/logs-smoke/
+evaluation/results.json
+evaluation/recorded-gameplay.jsonl
+evaluation/merged-training-data.jsonl
+evaluation/final-*.jsonl
+evaluation/training-data*.jsonl
+
+# Development screenshots and test outputs at repo root
+/*.png
+/test-console-errors.log

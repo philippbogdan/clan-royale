@@ -260,23 +260,6 @@
         opacity: 1;
       }
 
-      #voice-log {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 280px;
-        height: 100vh;
-        padding: 12px;
-        overflow-y: auto;
-        z-index: 50;
-        pointer-events: none;
-        font-family: "Nunito", sans-serif;
-        font-size: 11px;
-        line-height: 1.5;
-        display: none;
-        flex-direction: column;
-        gap: 4px;
-      }
 
     </style>
 
@@ -305,7 +288,6 @@
     </div>
 
     <div id="game-container"></div>
-    <div id="voice-log"></div>
 
     <script>
       // ---- Particle system (cinematic) ----
@@ -391,34 +373,6 @@
         window.__stopParticles = function() { running = false; };
       })();
 
-      // ---- Voice log helper ----
-      // Only show player, agent, and action messages — skip system/debug noise
-      window.addVoiceLog = function(text, type) {
-        var log = document.getElementById("voice-log");
-        if (!log) return;
-        // Filter: only show meaningful messages
-        if (type !== "player" && type !== "agent" && type !== "action" && type !== "error") return;
-        var line = document.createElement("div");
-        line.textContent = text;
-        var colors = {
-          agent: "#4a9",
-          player: "#e85d4a",
-          error: "#c33",
-          action: "#87CEEB"
-        };
-        line.style.color = colors[type] || "#888";
-        line.style.margin = "0";
-        line.style.padding = "2px 0";
-        log.appendChild(line);
-        log.scrollTop = log.scrollHeight;
-        while (log.children.length > 30) {
-          log.removeChild(log.firstChild);
-        }
-      };
-
-      // ---- STT Debug Log (noop) ----
-      window.__sttLog = [];
-      window.addSTTLog = function() {};
 
       // ---- Mic + launch ----
       document.getElementById("enter-btn").addEventListener("click", function() {
@@ -485,7 +439,6 @@
       function dismissLanding() {
         var landing = document.getElementById("landing");
         landing.classList.add("fade-out");
-        document.getElementById("voice-log").style.display = "flex";
         window.__stopParticles();
         setTimeout(function() {
           landing.style.display = "none";

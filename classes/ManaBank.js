@@ -8,7 +8,6 @@ class ManaBank {
       this.displaying = false;
 
       if (renderX && renderY) {
-        console.log("creating display bar");
         this.displaying = true;
         this.displayBar = new DisplayBar(
           scene,

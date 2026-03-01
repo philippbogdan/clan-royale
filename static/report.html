@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clan Royale — Results</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #F5F4F1;
+    color: #1A1A1A;
+    font-family: 'Space Mono', monospace;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page { text-align: center; width: 88%; max-width: 720px; }
+
+  .title {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(18px, 3.5vw, 28px);
+    letter-spacing: 0.06em;
+    color: #D4A12A;
+    margin-bottom: 40px;
+  }
+
+  .bar {
+    display: flex;
+    height: 64px;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .bar-ft {
+    width: 59%;
+    background: linear-gradient(135deg, #D4A12A, #B8920E);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .bar-base {
+    width: 41%;
+    background: #D0CEC9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .bar-label {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(16px, 2.5vw, 24px);
+  }
+
+  .bar-ft .bar-label { color: #fff; }
+  .bar-base .bar-label { color: #8A8880; }
+
+  .labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6A6560;
+  }
+
+  .pval {
+    margin-top: 32px;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    color: #6A6560;
+  }
+
+  .pval em {
+    color: #6A6560;
+    font-style: normal;
+  }
+
+  @media print {
+    @page { size: A4 landscape; margin: 2cm; }
+    body { background: #fff; }
+    .title { color: #8B6914; }
+    .bar-ft { background: #C4960E; }
+    .bar-base { background: #ddd; }
+    .bar-ft .bar-label { color: #fff; }
+    .bar-base .bar-label { color: #888; }
+    .labels, .pval { color: #999; }
+    .pval em { color: #666; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title">1v1 Win Rate</div>
+  <div class="bar">
+    <div class="bar-ft"><span class="bar-label">59%</span></div>
+    <div class="bar-base"><span class="bar-label">41%</span></div>
+  </div>
+  <div class="labels"><span>Fine-tuned</span><span>Base</span></div>
+  <div class="pval"><em>n</em> = 100 &nbsp;&bull;&nbsp; <em>p</em> = 0.044</div>
+</div>
+</body>
+</html>

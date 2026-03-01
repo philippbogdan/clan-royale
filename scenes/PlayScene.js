@@ -59,7 +59,7 @@ export default class PlayScene extends Scene {
       this._setupControlMode();
       this._setupWinConditionHandler();
     } catch (e) {
-      console.error(e);
+      // Initialization failed silently.
     }
   }
 
@@ -159,7 +159,7 @@ export default class PlayScene extends Scene {
         }
       });
     } catch (error) {
-      console.warn("Could not start background music:", error);
+      // Background music unavailable.
     }
   }
 
@@ -281,7 +281,7 @@ export default class PlayScene extends Scene {
           this.scene.start("WinScene");
         }
       } catch (error) {
-        console.error(error);
+        // Tower-destroyed handler failed silently.
       }
     });
   }
@@ -346,7 +346,6 @@ export default class PlayScene extends Scene {
       });
 
       if (!response.ok) {
-        console.error(`[AI Turn] ${side} request failed: ${response.status}`);
         return;
       }
 
@@ -365,7 +364,7 @@ export default class PlayScene extends Scene {
         this.gameAPI.recordDecision(gameState, actions, side);
       }
     } catch (error) {
-      console.error(`[AI Turn] ${side} error:`, error);
+      // AI turn failed; will retry next interval.
     } finally {
       this[`_aiRunning_${side}`] = false;
     }

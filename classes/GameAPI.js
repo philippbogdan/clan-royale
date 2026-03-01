@@ -29,7 +29,6 @@ class GameAPI {
 
     // Deploy queue for queuing cards when mana is insufficient
     this._deployQueue = [];
-    window.__deployQueue = this._deployQueue;
 
     // Recorded decisions for training data (spectator mode)
     this._recordedDecisions = [];
@@ -221,7 +220,6 @@ class GameAPI {
       queuedAt: Date.now(),
       ghost
     });
-    window.__deployQueue = this._deployQueue;
 
     return { success: true, card: troopClass.NAME, queued: true, position: this._deployQueue.length };
   }
@@ -234,7 +232,6 @@ class GameAPI {
 
     if (currentMana >= front.cost) {
       this._deployQueue.shift();
-      window.__deployQueue = this._deployQueue;
 
       // Remove ghost sprite
       if (front.ghost) {
@@ -376,7 +373,6 @@ class GameAPI {
   }
 
   _flushRecordedDecisions(result) {
-    console.log('[GameAPI] Flushing', this._recordedDecisions.length, 'recorded decisions, result:', result);
     if (this._recordedDecisions.length === 0) return;
 
     const entries = this._recordedDecisions.map(d => ({

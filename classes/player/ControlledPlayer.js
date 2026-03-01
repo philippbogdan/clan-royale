@@ -58,7 +58,6 @@ export default class ControlledPlayer extends Player {
               const gameState = api.getGameState();
               const action = { type: "play_card", card: troopClass.NAME, col: grid.col, row: grid.row };
               api.recordDecision(gameState, [action], "player");
-              console.log('[Recording] Card deployed:', troopClass.NAME, 'at', grid.col, grid.row, '| Total recorded:', api._recordedDecisions.length);
             }
           } catch (e) {
             console.error('[Recording] Error:', e);
